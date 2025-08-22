@@ -4,24 +4,24 @@ import { NodeType } from "./NodePosition";
 // Create the mindmap
 const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 
-// Add nodes to the right side
-const taskId = mindMap.addRootChild("Project Tasks", NodeType.TASK, "right");
-const ideaId = mindMap.addRootChild("Brainstorming", NodeType.IDEA, "right");
+// // Add nodes to the right side
+// const taskId = mindMap.addRootChild("Project Tasks", NodeType.TASK, "right");
+// const ideaId = mindMap.addRootChild("Brainstorming", NodeType.IDEA, "right");
 
-// Add nodes to the left side
-const resourceId = mindMap.addRootChild("Resources", NodeType.RESOURCE, "left");
-const deadlineId = mindMap.addRootChild("Deadlines", NodeType.DEADLINE, "left");
+// // Add nodes to the left side
+// const resourceId = mindMap.addRootChild("Resources", NodeType.RESOURCE, "left");
+// const deadlineId = mindMap.addRootChild("Deadlines", NodeType.DEADLINE, "left");
 
-// Add child nodes to demonstrate hierarchical positioning
-mindMap.addChildToNode(taskId, "Design UI", NodeType.TASK);
-mindMap.addChildToNode(taskId, "Implement Backend", NodeType.TASK);
-mindMap.addChildToNode(taskId, "Write Tests", NodeType.TASK);
+// // Add child nodes to demonstrate hierarchical positioning
+// mindMap.addChildToNode(taskId, "Design UI", NodeType.TASK);
+// mindMap.addChildToNode(taskId, "Implement Backend", NodeType.TASK);
+// mindMap.addChildToNode(taskId, "Write Tests", NodeType.TASK);
 
-mindMap.addChildToNode(ideaId, "User Research", NodeType.IDEA);
-mindMap.addChildToNode(ideaId, "Competitor Analysis", NodeType.IDEA);
+// mindMap.addChildToNode(ideaId, "User Research", NodeType.IDEA);
+// mindMap.addChildToNode(ideaId, "Competitor Analysis", NodeType.IDEA);
 
-mindMap.addChildToNode(resourceId, "Design System", NodeType.RESOURCE);
-mindMap.addChildToNode(resourceId, "API Documentation", NodeType.RESOURCE);
+// mindMap.addChildToNode(resourceId, "Design System", NodeType.RESOURCE);
+// mindMap.addChildToNode(resourceId, "API Documentation", NodeType.RESOURCE);
 
 // Expose mindMap globally for debugging and testing
 (window as any).mindMap = mindMap;
@@ -39,7 +39,17 @@ mindMap.addChildToNode(resourceId, "API Documentation", NodeType.RESOURCE);
   const randomTopic = topics[Math.floor(Math.random() * topics.length)];
   const randomType = types[Math.floor(Math.random() * types.length)];
 
-  return mindMap.addRootChild(randomTopic, randomType, side);
+  // Get selected node ID from the controller
+  const selectedNodeId = mindMap.getController().getSelectedNodeId();
+  const rootId = mindMap.getController().getRootId();
+
+  if (selectedNodeId && selectedNodeId !== rootId) {
+    // Add child to selected non-root node (ignore side parameter)
+    return mindMap.addChildToNode(selectedNodeId, randomTopic, randomType);
+  } else {
+    // No selection or root selected, add to specified side of root
+    return mindMap.addRootChild(randomTopic, randomType, side);
+  }
 };
 
 (window as any).addChildToNode = (parentId: string) => {
@@ -61,7 +71,7 @@ console.log(`
 • Use Delete/Backspace to remove nodes (to be implemented)
 
 🔧 Developer Commands:
-• addRandomNode('left') or addRandomNode('right')
+• addRandomNode('left'/'right') - adds child to selected node, or to root side if root/none selected
 • addChildToNode(nodeId)
 • mindMap.getNodeCount()
 • mindMap.getRootId()

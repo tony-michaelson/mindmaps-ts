@@ -99,20 +99,60 @@ export class HierarchicalPositioner {
     const parentPos = this.nodePositions.get(parentId)!;
     const updatedPositions: NodePosition[] = [];
 
-    siblings.forEach((siblingId, index) => {
-      const { nodeY } = this.calculateVerticalStack(
-        siblings.length,
-        index,
-        parentPos.y
-      );
+    // If this is the root node, separate left and right children
+    if (parentPos.level === 0) {
+      const leftSiblings = siblings.filter(siblingId => {
+        const pos = this.nodePositions.get(siblingId);
+        return pos?.side === "left";
+      });
+      
+      const rightSiblings = siblings.filter(siblingId => {
+        const pos = this.nodePositions.get(siblingId);
+        return pos?.side === "right";
+      });
 
-      // Update position
-      const siblingPos = this.nodePositions.get(siblingId)!;
-      siblingPos.y = nodeY;
-      siblingPos.stackIndex = index;
+      // Reposition left siblings
+      leftSiblings.forEach((siblingId, index) => {
+        const { nodeY } = this.calculateVerticalStack(
+          leftSiblings.length,
+          index,
+          parentPos.y
+        );
 
-      updatedPositions.push(siblingPos);
-    });
+        const siblingPos = this.nodePositions.get(siblingId)!;
+        siblingPos.y = nodeY;
+        siblingPos.stackIndex = index;
+        updatedPositions.push(siblingPos);
+      });
+
+      // Reposition right siblings
+      rightSiblings.forEach((siblingId, index) => {
+        const { nodeY } = this.calculateVerticalStack(
+          rightSiblings.length,
+          index,
+          parentPos.y
+        );
+
+        const siblingPos = this.nodePositions.get(siblingId)!;
+        siblingPos.y = nodeY;
+        siblingPos.stackIndex = index;
+        updatedPositions.push(siblingPos);
+      });
+    } else {
+      // For non-root nodes, use the original logic
+      siblings.forEach((siblingId, index) => {
+        const { nodeY } = this.calculateVerticalStack(
+          siblings.length,
+          index,
+          parentPos.y
+        );
+
+        const siblingPos = this.nodePositions.get(siblingId)!;
+        siblingPos.y = nodeY;
+        siblingPos.stackIndex = index;
+        updatedPositions.push(siblingPos);
+      });
+    }
 
     return updatedPositions;
   }

@@ -17,6 +17,7 @@ export class MindmapController {
   private rootX: number;
   private rootY: number;
   private nodeCounter = 0;
+  private selectedNodeId: string | null = null;
 
   constructor(layer: Konva.Layer, rootX: number, rootY: number) {
     this.layer = layer;
@@ -225,6 +226,7 @@ export class MindmapController {
     const node = this.konvaNodes.get(nodeId);
     if (node) {
       node.setSelected(true);
+      this.selectedNodeId = nodeId;
     }
 
     // Single redraw for all changes
@@ -256,6 +258,10 @@ export class MindmapController {
 
   public getRootId(): string | null {
     return this.rootId;
+  }
+
+  public getSelectedNodeId(): string | null {
+    return this.selectedNodeId;
   }
 
   public removeNode(nodeId: string): void {
