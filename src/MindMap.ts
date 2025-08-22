@@ -35,24 +35,8 @@ export class MindMap {
   }
 
   private initEvents(): void {
-    this.stage.on("click", (e) => {
-      console.log(
-        "Clicked on:",
-        e.target.getClassName(),
-        "Name:",
-        e.target.name()
-      );
-
-      // Only handle clicks on the stage itself (empty canvas)
-      if (e.target === this.stage) {
-        const pos = this.stage.getPointerPosition();
-        if (pos) {
-          this.handleCanvasClick(pos.x, pos.y);
-        }
-      } else {
-        e.evt.stopPropagation();
-      }
-    });
+    // Enable stage dragging for panning the mindmap
+    this.stage.draggable(true);
 
     // Add keyboard shortcuts
     this.initKeyboardShortcuts();
@@ -93,14 +77,6 @@ export class MindMap {
   private createInitialRoot(): void {
     this.controller.createRootNode("Main Topic");
     this.layer.draw();
-  }
-
-  private handleCanvasClick(x: number, y: number): void {
-    // Determine which side of the root was clicked
-    const side = x > this.centerX ? "right" : "left";
-
-    // Add a new node to that side
-    this.addNodeToSide(side);
   }
 
   private addNodeToSide(side: "left" | "right"): void {
@@ -161,19 +137,6 @@ export class MindMap {
   }
 
   // Public API methods
-  public addNode(x: number, y: number, text: string, color: string): void {
-    // Legacy method - now determines side based on position
-    const side = x > this.centerX ? "right" : "left";
-    const nodeType = NodeType.TASK; // Default type
-
-    try {
-      this.controller.addNodeToRoot(text, nodeType, side);
-      this.layer.draw();
-    } catch (error) {
-      console.error("Failed to add legacy node:", error);
-    }
-  }
-
   public addRootNode(text: string): string {
     return this.controller.createRootNode(text);
   }
