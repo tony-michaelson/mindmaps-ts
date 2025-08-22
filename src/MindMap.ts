@@ -32,7 +32,7 @@ export class MindMap {
       if (e.target === this.stage) {
         const pos = this.stage.getPointerPosition();
         if (pos) {
-          this.addNode(pos.x, pos.y, "Node", "Gray");
+          this.addNode(pos.x, pos.y, "Node", "Lightgray");
         }
       } else {
         e.evt.stopPropagation();
@@ -41,7 +41,13 @@ export class MindMap {
   }
 
   public addNode(x: number, y: number, text: string, color: string) {
-    const node = new Node(x, y, text, color, this.layer);
+    const node = new Node({
+      x,
+      y,
+      text,
+      layer: this.layer,
+      customColor: color,
+    });
     this.nodes.push(node);
   }
 
