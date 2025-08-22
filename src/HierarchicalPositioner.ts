@@ -1,9 +1,12 @@
 import { NodePosition, LAYOUT_CONFIG } from "./NodePosition";
+import { TreeLayoutCalculator, TreeNode, LayoutResult } from "./TreeLayout";
 
 export class HierarchicalPositioner {
   private nodePositions: Map<string, NodePosition> = new Map();
   private childrenMap: Map<string, string[]> = new Map();
   private nodeSides: Map<string, "left" | "right"> = new Map();
+  private layoutCalculator = new TreeLayoutCalculator();
+  private nodeData: Map<string, { width: number; height: number }> = new Map();
 
   calculateNodePosition(
     nodeId: string,
@@ -12,6 +15,12 @@ export class HierarchicalPositioner {
     rootX: number,
     rootY: number
   ): NodePosition {
+    // Store node dimensions for layout calculations
+    this.nodeData.set(nodeId, { 
+      width: LAYOUT_CONFIG.width, 
+      height: LAYOUT_CONFIG.height 
+    });
+
     if (!parentId) {
       // Root node - always centered
       const position: NodePosition = {
@@ -27,39 +36,21 @@ export class HierarchicalPositioner {
     }
 
     const parentPos = this.nodePositions.get(parentId)!;
-    const siblings = this.childrenMap.get(parentId) || [];
-    const stackIndex = siblings.length;
+    const stackIndex = (this.childrenMap.get(parentId) || []).length;
 
     let nodeSide: "left" | "right";
-    let baseX: number;
-
     if (parentPos.level === 0) {
-      // Parent is root - use provided side
       nodeSide = side;
-      const direction = side === "right" ? 1 : -1;
-      baseX = rootX + direction * LAYOUT_CONFIG.horizontalSpacing;
     } else {
-      // Parent is not root - inherit parent's side and continue in same direction
       nodeSide = parentPos.side;
-      const direction = nodeSide === "right" ? 1 : -1;
-      baseX =
-        rootX +
-        direction * (parentPos.level + 1) * LAYOUT_CONFIG.horizontalSpacing;
     }
 
-    // Store the side for this node
     this.nodeSides.set(nodeId, nodeSide);
 
-    // Calculate vertical stacking
-    const { nodeY } = this.calculateVerticalStack(
-      siblings.length + 1,
-      stackIndex,
-      parentPos.y
-    );
-
+    // Create temporary position - will be recalculated with outline-based layout
     const position: NodePosition = {
-      x: baseX,
-      y: nodeY,
+      x: rootX, // Will be updated by outline calculation
+      y: rootY, // Will be updated by outline calculation
       level: parentPos.level + 1,
       parentId,
       stackIndex,
@@ -70,92 +61,84 @@ export class HierarchicalPositioner {
     return position;
   }
 
-  private calculateVerticalStack(
-    totalNodes: number,
-    nodeIndex: number,
-    parentY: number
-  ): { centerY: number; nodeY: number } {
-    if (totalNodes === 1) {
-      // Single node aligns with parent
-      return { centerY: parentY, nodeY: parentY };
-    }
-
-    // Calculate the stack's center (should align with parent)
-    const stackHeight = (totalNodes - 1) * LAYOUT_CONFIG.verticalSpacing;
-    const stackTop = parentY - stackHeight / 2;
-
-    // Position this node within the stack
-    const nodeY = stackTop + nodeIndex * LAYOUT_CONFIG.verticalSpacing;
-
-    return { centerY: parentY, nodeY };
-  }
 
   repositionSiblings(
     parentId: string,
     rootX: number,
     rootY: number
   ): NodePosition[] {
-    const siblings = this.childrenMap.get(parentId) || [];
-    const parentPos = this.nodePositions.get(parentId)!;
+    // Trigger full outline-based layout recalculation
+    return this.recalculateLayout(rootX, rootY);
+  }
+
+  // Recalculate entire layout using outline-based system
+  private recalculateLayout(rootX: number, rootY: number): NodePosition[] {
+    const rootId = this.findRootNode();
+    if (!rootId) return [];
+
+    // Build tree structures for left and right sides
+    const leftNodes = this.buildTreeStructure(rootId, "left");
+    const rightNodes = this.buildTreeStructure(rootId, "right");
+    const rootNode = this.createTreeNode(rootId);
+
+    // Calculate layout using outline-based algorithm
+    const layoutResults = this.layoutCalculator.calculateLayout(
+      leftNodes,
+      rightNodes,
+      rootNode,
+      rootX,
+      rootY
+    );
+
+    // Update stored positions
     const updatedPositions: NodePosition[] = [];
-
-    // If this is the root node, separate left and right children
-    if (parentPos.level === 0) {
-      const leftSiblings = siblings.filter(siblingId => {
-        const pos = this.nodePositions.get(siblingId);
-        return pos?.side === "left";
-      });
-      
-      const rightSiblings = siblings.filter(siblingId => {
-        const pos = this.nodePositions.get(siblingId);
-        return pos?.side === "right";
-      });
-
-      // Reposition left siblings
-      leftSiblings.forEach((siblingId, index) => {
-        const { nodeY } = this.calculateVerticalStack(
-          leftSiblings.length,
-          index,
-          parentPos.y
-        );
-
-        const siblingPos = this.nodePositions.get(siblingId)!;
-        siblingPos.y = nodeY;
-        siblingPos.stackIndex = index;
-        updatedPositions.push(siblingPos);
-      });
-
-      // Reposition right siblings
-      rightSiblings.forEach((siblingId, index) => {
-        const { nodeY } = this.calculateVerticalStack(
-          rightSiblings.length,
-          index,
-          parentPos.y
-        );
-
-        const siblingPos = this.nodePositions.get(siblingId)!;
-        siblingPos.y = nodeY;
-        siblingPos.stackIndex = index;
-        updatedPositions.push(siblingPos);
-      });
-    } else {
-      // For non-root nodes, use the original logic
-      siblings.forEach((siblingId, index) => {
-        const { nodeY } = this.calculateVerticalStack(
-          siblings.length,
-          index,
-          parentPos.y
-        );
-
-        const siblingPos = this.nodePositions.get(siblingId)!;
-        siblingPos.y = nodeY;
-        siblingPos.stackIndex = index;
-        updatedPositions.push(siblingPos);
-      });
-    }
+    layoutResults.forEach(result => {
+      const nodePos = this.nodePositions.get(result.nodeId);
+      if (nodePos) {
+        // TreeLayout returns top-left coordinates, convert to center coordinates
+        nodePos.x = result.x + result.width / 2;
+        nodePos.y = result.y + result.height / 2;
+        updatedPositions.push(nodePos);
+      }
+    });
 
     return updatedPositions;
   }
+
+  // Build tree structure for outline calculation
+  private buildTreeStructure(nodeId: string, side: "left" | "right"): TreeNode[] {
+    const children = this.childrenMap.get(nodeId) || [];
+    const sideChildren = children.filter(childId => {
+      const childSide = this.nodeSides.get(childId);
+      return childSide === side;
+    });
+
+    return sideChildren.map(childId => this.createTreeNode(childId));
+  }
+
+  // Create tree node for layout calculation
+  private createTreeNode(nodeId: string): TreeNode {
+    const nodeData = this.nodeData.get(nodeId) || { width: LAYOUT_CONFIG.width, height: LAYOUT_CONFIG.height };
+    const children = this.childrenMap.get(nodeId) || [];
+    
+    return {
+      id: nodeId,
+      width: nodeData.width,
+      height: nodeData.height,
+      children: children.map(childId => this.createTreeNode(childId))
+    };
+  }
+
+  // Find root node
+  private findRootNode(): string | null {
+    for (const [nodeId, position] of this.nodePositions) {
+      if (position.level === 0) {
+        return nodeId;
+      }
+    }
+    return null;
+  }
+
 
   addToChildrenMap(parentId: string, childId: string): void {
     const siblings = this.childrenMap.get(parentId) || [];
@@ -188,5 +171,6 @@ export class HierarchicalPositioner {
     this.nodePositions.delete(nodeId);
     this.nodeSides.delete(nodeId);
     this.childrenMap.delete(nodeId);
+    this.nodeData.delete(nodeId);
   }
 }
