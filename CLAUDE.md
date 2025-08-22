@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Development server**: `npm run dev` - Starts Vite dev server on localhost:5173
 - **Build**: `npm run build` - Creates production build using Vite
-- **Unit tests**: `npm run test` - Runs Jest tests (note: Jest configured but no unit tests currently exist)
+- **Unit tests**: `npm run test` - Runs Jest tests (Jest available but not configured; currently no unit tests exist)
 - **E2E tests**: `npm run test:e2e` - Runs Playwright tests headless
 - **E2E tests headed**: `npm run test:e2e:headed` - Runs Playwright tests with browser UI
 
@@ -23,6 +23,10 @@ This is a TypeScript mindmapping library built on Konva.js for 2D canvas graphic
 - **HierarchicalPositioner** (`src/HierarchicalPositioner.ts`): Layout engine that calculates node positions using a hierarchical algorithm. Manages spatial relationships and automatic repositioning of siblings.
 
 - **Node** (`src/Node.ts`): Visual representation of mindmap nodes as Konva groups. Handles text wrapping, color calculations based on luminosity, and visual state management (selected, activated, collapsed).
+
+- **TreeLayout** (`src/TreeLayout.ts`): Advanced layout system that computes optimal node positions using outline-based collision detection. Defines interfaces for tree structure and layout results.
+
+- **Outline** (`src/Outline.ts`): Geometric outline representation for nodes that enables precise spacing calculations. Used by TreeLayout to prevent node overlaps and maintain proper visual hierarchy.
 
 ### Key Design Patterns
 

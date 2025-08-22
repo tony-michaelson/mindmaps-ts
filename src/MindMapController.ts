@@ -18,6 +18,7 @@ export class MindmapController {
   private rootY: number;
   private nodeCounter = 0;
   private selectedNodeId: string | null = null;
+  public onNodeSelected?: (nodeId: string | null) => void;
 
   constructor(layer: Konva.Layer, rootX: number, rootY: number) {
     this.layer = layer;
@@ -227,6 +228,11 @@ export class MindmapController {
     if (node) {
       node.setSelected(true);
       this.selectedNodeId = nodeId;
+    }
+
+    // Notify callback of selection change
+    if (this.onNodeSelected) {
+      this.onNodeSelected(nodeId);
     }
 
     // Single redraw for all changes
