@@ -1,0 +1,37 @@
+{
+  "name": "mindmaps-ts",
+  "version": "0.0.1",
+  "description": "A mindmapping library based on konva.js",
+  "main": "index.js",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/tony-michaelson/mindmaps-ts.git"
+  },
+  "keywords": [
+    "mind",
+    "maps"
+  ],
+  "author": "Anthony Ian Michaelson",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tony-michaelson/mindmaps-ts/issues"
+  },
+  "homepage": "https://github.com/tony-michaelson/mindmaps-ts#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.51.0",
+    "@types/node": "^22.13.10",
+    "playwright": "^1.51.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2"
+  },
+  "dependencies": {
+    "konva": "^9.3.19"
+  }
+}
