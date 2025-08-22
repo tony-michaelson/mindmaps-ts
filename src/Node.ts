@@ -3,7 +3,7 @@ import Konva from "konva";
 export class Node {
   private group: Konva.Group;
   private layer: Konva.Layer;
-  private padding: number = 8; // Updated to match specs
+  private padding: number = 8;
   private isRoot: boolean;
   private isSelected: boolean = false;
   private isActivated: boolean = false;

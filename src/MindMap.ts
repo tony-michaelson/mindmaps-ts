@@ -1,11 +1,13 @@
 import Konva from "konva";
-import { Node } from "./Node";
+import { MindmapController } from "./MindMapController";
+import { NodeType } from "./NodePosition";
 
 export class MindMap {
   private stage: Konva.Stage;
   private layer: Konva.Layer;
-  private nodes: Node[] = [];
-  private edges: Konva.Line[] = [];
+  private controller: MindmapController;
+  private centerX: number;
+  private centerY: number;
 
   constructor(containerId: string, width: number, height: number) {
     this.stage = new Konva.Stage({
@@ -17,10 +19,22 @@ export class MindMap {
     this.layer = new Konva.Layer();
     this.stage.add(this.layer);
 
+    // Calculate center position
+    this.centerX = width / 2;
+    this.centerY = height / 2;
+
+    // Initialize controller
+    this.controller = new MindmapController(
+      this.layer,
+      this.centerX,
+      this.centerY
+    );
+
     this.initEvents();
+    this.createInitialRoot();
   }
 
-  private initEvents() {
+  private initEvents(): void {
     this.stage.on("click", (e) => {
       console.log(
         "Clicked on:",
@@ -29,29 +43,183 @@ export class MindMap {
         e.target.name()
       );
 
+      // Only handle clicks on the stage itself (empty canvas)
       if (e.target === this.stage) {
         const pos = this.stage.getPointerPosition();
         if (pos) {
-          this.addNode(pos.x, pos.y, "Node", "Lightgray");
+          this.handleCanvasClick(pos.x, pos.y);
         }
       } else {
         e.evt.stopPropagation();
       }
     });
+
+    // Add keyboard shortcuts
+    this.initKeyboardShortcuts();
   }
 
-  public addNode(x: number, y: number, text: string, color: string) {
-    const node = new Node({
-      x,
-      y,
-      text,
-      layer: this.layer,
-      customColor: color,
+  private initKeyboardShortcuts(): void {
+    window.addEventListener("keydown", (e) => {
+      // Only handle shortcuts when no input is focused
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      switch (e.key) {
+        case "ArrowRight":
+          e.preventDefault();
+          this.addNodeToSide("right");
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          this.addNodeToSide("left");
+          break;
+        case "Enter":
+          e.preventDefault();
+          this.addChildToSelected();
+          break;
+        case "Delete":
+        case "Backspace":
+          e.preventDefault();
+          this.deleteSelectedNode();
+          break;
+      }
     });
-    this.nodes.push(node);
   }
 
-  public render() {
+  private createInitialRoot(): void {
+    this.controller.createRootNode("Main Topic");
     this.layer.draw();
+  }
+
+  private handleCanvasClick(x: number, y: number): void {
+    // Determine which side of the root was clicked
+    const side = x > this.centerX ? "right" : "left";
+
+    // Add a new node to that side
+    this.addNodeToSide(side);
+  }
+
+  private addNodeToSide(side: "left" | "right"): void {
+    const nodeText = this.getNodeText();
+    const nodeType = this.getRandomNodeType();
+
+    try {
+      this.controller.addNodeToRoot(nodeText, nodeType, side);
+      this.layer.draw();
+    } catch (error) {
+      console.error("Failed to add node:", error);
+    }
+  }
+
+  private addChildToSelected(): void {
+    // This would need to determine which node is selected
+    // For now, we'll add to the root
+    this.addRootChild("New Node");
+  }
+
+  private deleteSelectedNode(): void {
+    // Implementation for deleting selected node
+    // This would need to track which node is currently selected
+    console.log("Delete functionality not yet implemented");
+  }
+
+  private getNodeText(): string {
+    // For demo purposes, generate random text
+    const topics = [
+      "Research",
+      "Design",
+      "Development",
+      "Testing",
+      "Deployment",
+      "Planning",
+      "Analysis",
+      "Implementation",
+      "Review",
+      "Documentation",
+      "Marketing",
+      "Sales",
+      "Support",
+      "Training",
+      "Maintenance",
+    ];
+
+    return topics[Math.floor(Math.random() * topics.length)];
+  }
+
+  private getRandomNodeType(): NodeType {
+    const types = [
+      NodeType.TASK,
+      NodeType.IDEA,
+      NodeType.RESOURCE,
+      NodeType.DEADLINE,
+    ];
+    return types[Math.floor(Math.random() * types.length)];
+  }
+
+  // Public API methods
+  public addNode(x: number, y: number, text: string, color: string): void {
+    // Legacy method - now determines side based on position
+    const side = x > this.centerX ? "right" : "left";
+    const nodeType = NodeType.TASK; // Default type
+
+    try {
+      this.controller.addNodeToRoot(text, nodeType, side);
+      this.layer.draw();
+    } catch (error) {
+      console.error("Failed to add legacy node:", error);
+    }
+  }
+
+  public addRootNode(text: string): string {
+    return this.controller.createRootNode(text);
+  }
+
+  public addChildToNode(
+    parentId: string,
+    text: string,
+    type: NodeType = NodeType.TASK
+  ): string {
+    return this.controller.addNodeToExisting(parentId, text, type);
+  }
+
+  public addRootChild(
+    text: string,
+    type: NodeType = NodeType.TASK,
+    side: "left" | "right" = "right"
+  ): string {
+    return this.controller.addNodeToRoot(text, type, side);
+  }
+
+  public removeNode(nodeId: string): void {
+    this.controller.removeNode(nodeId);
+  }
+
+  public getNodeCount(): number {
+    return this.controller.getNodeCount();
+  }
+
+  public getRootId(): string | null {
+    return this.controller.getRootId();
+  }
+
+  public render(): void {
+    this.layer.draw();
+  }
+
+  // Utility methods for external control
+  public getStage(): Konva.Stage {
+    return this.stage;
+  }
+
+  public getLayer(): Konva.Layer {
+    return this.layer;
+  }
+
+  public getController(): MindmapController {
+    return this.controller;
   }
 }
