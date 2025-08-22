@@ -216,14 +216,19 @@ export class MindmapController {
   }
 
   private selectNode(nodeId: string): void {
-    // Clear all selections first
-    this.konvaNodes.forEach((node) => node.setSelected(false));
+    // Clear all selections first (without redrawing)
+    this.konvaNodes.forEach((node) => {
+      node.setSelected(false);
+    });
 
-    // Select the clicked node
+    // Select the clicked node (without redrawing)
     const node = this.konvaNodes.get(nodeId);
     if (node) {
       node.setSelected(true);
     }
+
+    // Single redraw for all changes
+    this.layer.draw();
   }
 
   private formatNodeText(text: string): string {

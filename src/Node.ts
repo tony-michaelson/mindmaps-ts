@@ -147,7 +147,7 @@ export class Node {
   // State management methods
   public setSelected(selected: boolean): void {
     this.isSelected = selected;
-    this.updateVisualState();
+    this.updateVisualStateOnly();
   }
 
   public setActivated(activated: boolean): void {
@@ -160,20 +160,41 @@ export class Node {
     this.updateVisualState();
   }
 
-  // Update visual state based on current flags
+  // Update visual state and redraw layer
   private updateVisualState(): void {
+    this.updateVisualStateOnly();
+    this.layer.draw();
+  }
+
+  // Update visual state without redrawing (for batch operations)
+  private updateVisualStateOnly(): void {
     const rect = this.group.findOne("Rect") as Konva.Rect;
     if (rect) {
-      rect.stroke(this.isActivated ? "#2E9AFE" : "#888");
-      rect.strokeWidth(this.isActivated ? 3 : 1);
-      rect.shadowBlur(this.isSelected ? 0 : 10);
+      if (this.isSelected) {
+        // Selected: dashed border with root node color
+        rect.stroke(Node.defaultStyles.root.background);
+        rect.strokeWidth(2);
+        rect.dash([8, 4]);
+      } else if (this.isActivated) {
+        // Activated: solid blue border
+        rect.stroke("#2E9AFE");
+        rect.strokeWidth(3);
+        rect.dash([]);
+      } else {
+        // Default: solid gray border
+        rect.stroke("#888");
+        rect.strokeWidth(1);
+        rect.dash([]);
+      }
+      
+      // Keep shadow consistent regardless of selection
+      rect.shadowBlur(10);
       rect.shadowOffset({
         x: 4,
         y: this.isCollapsed ? 3 : 4,
       });
-      rect.shadowOpacity(this.isSelected ? 1.0 : 0.4);
+      rect.shadowOpacity(0.4);
     }
-    this.layer.draw();
   }
 
   public getGroup(): Konva.Group {

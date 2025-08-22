@@ -8,6 +8,7 @@ export class MindMap {
   private controller: MindmapController;
   private centerX: number;
   private centerY: number;
+  private selectedNodeId: string | null = null;
 
   constructor(containerId: string, width: number, height: number) {
     this.stage = new Konva.Stage({
@@ -29,6 +30,11 @@ export class MindMap {
       this.centerX,
       this.centerY
     );
+
+    // Set up selection callback
+    this.controller.onNodeSelected = (nodeId: string | null) => {
+      this.selectedNodeId = nodeId;
+    };
 
     this.initEvents();
     this.createInitialRoot();
@@ -63,7 +69,7 @@ export class MindMap {
           break;
         case "Enter":
           e.preventDefault();
-          this.addChildToSelected();
+          this.addChildToSelected("New Node", NodeType.TASK);
           break;
         case "Delete":
         case "Backspace":
@@ -91,10 +97,21 @@ export class MindMap {
     }
   }
 
-  private addChildToSelected(): void {
-    // This would need to determine which node is selected
-    // For now, we'll add to the root
-    this.addRootChild("New Node");
+  private addChildToSelected(text: string = "New Node", type: NodeType = NodeType.TASK): void {
+    if (this.selectedNodeId) {
+      // Add child to the selected node
+      try {
+        this.controller.addNodeToExisting(this.selectedNodeId, text, type);
+        this.layer.draw();
+      } catch (error) {
+        console.error("Failed to add child to selected node:", error);
+        // Fallback to adding to root
+        this.addRootChild(text, type);
+      }
+    } else {
+      // No node selected, add to root
+      this.addRootChild(text, type);
+    }
   }
 
   private deleteSelectedNode(): void {
