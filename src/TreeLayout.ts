@@ -30,13 +30,12 @@ export interface SubtreeLayout {
 }
 
 export class TreeLayoutCalculator {
-  
   // Calculate layout for a single tree (either left or right side)
   calculateTree(
     node: TreeNode,
-    margin: number = LAYOUT_CONFIG.verticalSpacing
+    margin: number = LAYOUT_CONFIG.verticalSpacing,
+    isRootContainer: boolean = false
   ): SubtreeLayout {
-    
     // Base case: leaf node
     if (node.children.length === 0) {
       const outline = Outline.forRectangle(node.width, node.height);
@@ -49,21 +48,30 @@ export class TreeLayoutCalculator {
         outline,
         deltaX: 0,
         deltaY: 0,
-        children: []
+        children: [],
       };
     }
 
     // Recursively calculate child layouts
-    const childLayouts = node.children.map(child => 
+    const childLayouts = node.children.map((child) =>
       this.calculateTree(child, margin)
     );
 
     // Position children with outline-based collision avoidance
-    const positionedChildren = this.appendSubtrees(childLayouts, node.width, margin);
-    
+    const positionedChildren = this.appendSubtrees(
+      childLayouts,
+      node.width,
+      margin,
+      isRootContainer
+    );
+
     // Create combined outline for this subtree
     const nodeOutline = Outline.forRectangle(node.width, node.height);
-    const combinedOutline = this.combineNodeWithChildren(nodeOutline, positionedChildren, margin);
+    const combinedOutline = this.combineNodeWithChildren(
+      nodeOutline,
+      positionedChildren,
+      margin
+    );
 
     return {
       nodeId: node.id,
@@ -74,7 +82,7 @@ export class TreeLayoutCalculator {
       outline: combinedOutline,
       deltaX: 0,
       deltaY: 0,
-      children: positionedChildren
+      children: positionedChildren,
     };
   }
 
@@ -82,7 +90,8 @@ export class TreeLayoutCalculator {
   private appendSubtrees(
     subtrees: SubtreeLayout[],
     parentWidth: number,
-    margin: number
+    margin: number,
+    isRootLevel: boolean = false
   ): SubtreeLayout[] {
     if (subtrees.length === 0) return [];
 
@@ -94,14 +103,14 @@ export class TreeLayoutCalculator {
       positioned.push({
         ...subtrees[0],
         deltaX: horizontal,
-        deltaY: 0
+        deltaY: isRootLevel ? -20 : 0,
       });
       return positioned;
     }
 
     // Multiple children: calculate total height and center around parent
     let totalHeight = 0;
-    
+
     // Calculate required height for all subtrees with spacing
     subtrees.forEach((subtree, index) => {
       totalHeight += subtree.outline.initialHeight();
@@ -111,18 +120,18 @@ export class TreeLayoutCalculator {
     });
 
     // Start positioning from top, centered around parent
-    let currentY = -totalHeight / 2;
-    
-    subtrees.forEach(subtree => {
+    let currentY = -totalHeight / 2 + (isRootLevel ? -20 : 0);
+
+    subtrees.forEach((subtree) => {
       const subtreeHeight = subtree.outline.initialHeight();
       const centerY = currentY + subtreeHeight / 2;
-      
+
       positioned.push({
         ...subtree,
         deltaX: horizontal,
-        deltaY: centerY
+        deltaY: centerY,
       });
-      
+
       currentY += subtreeHeight + margin;
     });
 
@@ -143,7 +152,7 @@ export class TreeLayoutCalculator {
     let combinedOutline = nodeOutline;
 
     // Combine with each child's outline
-    children.forEach(child => {
+    children.forEach((child) => {
       const childOutline = child.outline.translate(child.deltaX, child.deltaY);
       combinedOutline = combinedOutline.combineHorizontally(childOutline, 0);
     });
@@ -158,10 +167,10 @@ export class TreeLayoutCalculator {
     parentY: number = 0
   ): LayoutResult[] {
     const results: LayoutResult[] = [];
-    
+
     const absoluteX = parentX + layout.deltaX;
     const absoluteY = parentY + layout.deltaY;
-    
+
     // Add this node
     results.push({
       nodeId: layout.nodeId,
@@ -169,12 +178,16 @@ export class TreeLayoutCalculator {
       y: absoluteY,
       width: layout.width,
       height: layout.height,
-      outline: layout.outline
+      outline: layout.outline,
     });
 
     // Recursively process children
-    layout.children.forEach(child => {
-      const childResults = this.calculateAbsolutePositions(child, absoluteX, absoluteY);
+    layout.children.forEach((child) => {
+      const childResults = this.calculateAbsolutePositions(
+        child,
+        absoluteX,
+        absoluteY
+      );
       results.push(...childResults);
     });
 
@@ -199,52 +212,55 @@ export class TreeLayoutCalculator {
       y: rootY - rootNode.height / 2,
       width: rootNode.width,
       height: rootNode.height,
-      outline: Outline.forRectangle(rootNode.width, rootNode.height)
+      outline: Outline.forRectangle(rootNode.width, rootNode.height),
     });
 
     // Calculate right side layout
     if (rightNodes.length > 0) {
       const rightTree: TreeNode = {
-        id: 'right-container',
+        id: "right-container",
         width: 0,
         height: 0,
-        children: rightNodes
+        children: rightNodes,
       };
-      
-      const rightLayout = this.calculateTree(rightTree, margin);
+
+      const rightLayout = this.calculateTree(rightTree, margin, true);
       const rightResults = this.calculateAbsolutePositions(
         rightLayout,
         rootX + rootNode.width / 2,
         rootY
       );
-      
+
       // Filter out the container node, only add actual nodes
-      results.push(...rightResults.filter(r => r.nodeId !== 'right-container'));
+      results.push(
+        ...rightResults.filter((r) => r.nodeId !== "right-container")
+      );
     }
 
     // Calculate left side layout (mirror of right side)
     if (leftNodes.length > 0) {
       const leftTree: TreeNode = {
-        id: 'left-container',
+        id: "left-container",
         width: 0,
         height: 0,
-        children: leftNodes
+        children: leftNodes,
       };
-      
-      const leftLayout = this.calculateTree(leftTree, margin);
-      
+
+      const leftLayout = this.calculateTree(leftTree, margin, true);
+
       // For left side, position relative to root's left edge and mirror X
       const leftResults = this.calculateAbsolutePositions(
         leftLayout,
         0, // Start from origin for calculation
         rootY
-      ).filter(r => r.nodeId !== 'left-container')
-        .map(result => ({
+      )
+        .filter((r) => r.nodeId !== "left-container")
+        .map((result) => ({
           ...result,
           x: rootX - rootNode.width / 2 - result.x - result.width, // Mirror and offset from root's left edge
-          y: result.y // Y should align with root for first level
+          y: result.y, // Y should align with root for first level
         }));
-      
+
       results.push(...leftResults);
     }
 
