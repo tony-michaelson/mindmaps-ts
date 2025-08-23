@@ -27,12 +27,24 @@ export class MindmapController {
   private highlightUpdateThrottle = 0;
   private connectionUpdatePending = false;
   private lastDropTargetId: string | null = null;
+  private isDragInProgress = false;
   public onNodeSelected?: (nodeId: string | null) => void;
 
   constructor(layer: Konva.Layer, rootX: number, rootY: number) {
     this.layer = layer;
     this.rootX = rootX;
     this.rootY = rootY;
+  }
+
+  // Smart animation frame function - uses fixed 60 FPS during dragging for consistent performance
+  private smartAnimationFrame(callback: () => void): void {
+    if (this.isDragInProgress) {
+      // Fixed 60 FPS during dragging for consistent performance
+      setTimeout(callback, 1000 / 60); // 16.67ms intervals
+    } else {
+      // Use browser's optimized requestAnimationFrame for normal operations
+      requestAnimationFrame(callback);
+    }
   }
 
   createRootNode(text: string): string {
@@ -323,7 +335,7 @@ export class MindmapController {
     if (this.pendingRedraw) return; // Already scheduled
     
     this.pendingRedraw = true;
-    requestAnimationFrame(() => {
+    this.smartAnimationFrame(() => {
       this.updateVisibleConnections();
       this.pendingRedraw = false;
     });
@@ -426,7 +438,7 @@ export class MindmapController {
     if (this.pendingRedraw) return;
     
     this.pendingRedraw = true;
-    requestAnimationFrame(() => {
+    this.smartAnimationFrame(() => {
       this.layer.draw();
       this.pendingRedraw = false;
     });
@@ -447,6 +459,9 @@ export class MindmapController {
 
     // Add drag handlers for repositioning
     group.on("dragstart", () => {
+      // Set global drag state for fixed 60 FPS animation
+      this.isDragInProgress = true;
+      
       // Set dragging state for visual feedback
       const node = this.konvaNodes.get(nodeId);
       if (node) {
@@ -460,6 +475,9 @@ export class MindmapController {
     });
     
     group.on("dragend", () => {
+      // Clear global drag state - return to optimized requestAnimationFrame
+      this.isDragInProgress = false;
+      
       // Clear dragging state
       const node = this.konvaNodes.get(nodeId);
       if (node) {
@@ -917,6 +935,7 @@ export class MindmapController {
     if (this.connectionUpdatePending) return;
     
     this.connectionUpdatePending = true;
+    // Use direct requestAnimationFrame for drag connection updates to maintain responsiveness
     requestAnimationFrame(() => {
       this.updateSingleNodeConnection(nodeId);
       this.connectionUpdatePending = false;
