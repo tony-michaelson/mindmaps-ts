@@ -18,6 +18,7 @@ export class MindmapController {
   private positioner = new HierarchicalPositioner();
   private konvaNodes: Map<string, Node> = new Map();
   private connections: Map<string, Konva.Shape> = new Map();
+  private connectionCache: Map<string, { shape: Konva.Shape; lastUpdate: { parentPos: any; childPos: any } }> = new Map();
   private layer: Konva.Layer;
   private rootId: string | null = null;
   private rootX: number;
@@ -114,13 +115,8 @@ export class MindmapController {
       
       this.repositionSiblingsWithoutDraw(this.rootId);
       
-      // Add batch operation for connection update
-      this.batchManager.addOperation({
-        type: 'UPDATE_CONNECTION',
-        data: { parentId: this.rootId }
-      });
-      
-      this.updateConnectionsWithoutDraw(this.rootId);
+      // Connection already created in createInitialConnection, no need to recreate
+      // The optimized animation system will handle connection updates
 
       // End the batch - this will trigger the handleBatchCommit
       this.batchManager.endBatch();
@@ -179,13 +175,8 @@ export class MindmapController {
       
       this.repositionSiblingsWithoutDraw(parentId);
       
-      // Add batch operation for connection update
-      this.batchManager.addOperation({
-        type: 'UPDATE_CONNECTION',
-        data: { parentId }
-      });
-      
-      this.updateConnectionsWithoutDraw(parentId);
+      // Connection already created in createInitialConnection, no need to recreate
+      // The optimized animation system will handle connection updates
 
       // End the batch - this will trigger the handleBatchCommit
       this.batchManager.endBatch();
@@ -287,6 +278,57 @@ export class MindmapController {
 
     this.konvaNodes.set(nodeId, node);
     this.setupNodeInteractions(nodeId);
+    
+    // Immediately create connection so it can animate with the node
+    this.createInitialConnection(nodeId, parentId);
+  }
+
+  private createInitialConnection(nodeId: string, parentId: string): void {
+    const parentNode = this.konvaNodes.get(parentId);
+    const childNode = this.konvaNodes.get(nodeId);
+    
+    if (!parentNode || !childNode) return;
+    
+    const connectionId = `${parentId}-${nodeId}`;
+    
+    // Get current positions (both nodes are at parent position initially)
+    const parentGroup = parentNode.getGroup();
+    const childGroup = childNode.getGroup();
+    
+    const parentRect = parentGroup.children![0] as Konva.Rect;
+    const childRect = childGroup.children![0] as Konva.Rect;
+    
+    const parentPos = {
+      x: parentGroup.x() + parentRect.width() / 2,
+      y: parentGroup.y() + parentRect.height() / 2,
+      level: 0,
+      stackIndex: 0,
+      side: "right" as const
+    };
+    
+    const childPos = {
+      x: childGroup.x() + childRect.width() / 2,
+      y: childGroup.y() + childRect.height() / 2,
+      level: 0,
+      stackIndex: 0,
+      side: "right" as const
+    };
+    
+    // Create initial connection (will be a zero-length line initially)
+    const newConnection = this.createConnectionLine(parentPos, childPos, parentId, nodeId);
+    this.connections.set(connectionId, newConnection);
+    
+    // Add to connection cache for optimized updates
+    this.connectionCache.set(connectionId, {
+      shape: newConnection,
+      lastUpdate: { 
+        parentPos: { x: parentPos.x, y: parentPos.y }, 
+        childPos: { x: childPos.x, y: childPos.y } 
+      }
+    });
+    
+    this.layer.add(newConnection);
+    newConnection.moveToBottom();
   }
 
   private updateChildrenMap(parentId: string, childId: string): void {
@@ -370,10 +412,12 @@ export class MindmapController {
 
       const connectionId = `${parentId}-${childId}`;
 
-      // Remove old connection
+      // Remove old connection and cache entry
       const oldConnection = this.connections.get(connectionId);
       if (oldConnection) {
         oldConnection.destroy();
+        this.connections.delete(connectionId);
+        this.connectionCache.delete(connectionId);
       }
 
       // Get current visual positions from Konva groups (not target positions)
@@ -430,8 +474,8 @@ export class MindmapController {
       y: targetPosition.y - LAYOUT_CONFIG.height / 2,
       easing: Konva.Easings.EaseInOut,
       onUpdate: () => {
-        // Update connections during animation (without drawing)
-        this.updateAllConnectionsWithoutDraw();
+        // Efficiently update connection paths during animation (no recreation)
+        this.updateConnectionPathsOptimized();
       },
       onFinish: () => {
         // Restore full opacity after animation completes
@@ -469,10 +513,12 @@ export class MindmapController {
 
       const connectionId = `${parentId}-${childId}`;
 
-      // Remove old connection
+      // Remove old connection and cache entry
       const oldConnection = this.connections.get(connectionId);
       if (oldConnection) {
         oldConnection.destroy();
+        this.connections.delete(connectionId);
+        this.connectionCache.delete(connectionId);
       }
 
       // Get current visual positions from Konva groups (not target positions)
@@ -579,10 +625,124 @@ export class MindmapController {
         // Create new connection with current visual positions
         const newConnection = this.createConnectionLine(parentPos, childPos, parentId, childId);
         this.connections.set(connectionId, newConnection);
+        
+        // Add to connection cache for optimized updates
+        this.connectionCache.set(connectionId, {
+          shape: newConnection,
+          lastUpdate: { 
+            parentPos: { x: parentPos.x, y: parentPos.y }, 
+            childPos: { x: childPos.x, y: childPos.y } 
+          }
+        });
+        
         this.layer.add(newConnection);
         newConnection.moveToBottom();
       }
     });
+  }
+
+  // Optimized connection updates - only update paths, no shape recreation
+  private updateConnectionPathsOptimized(): void {
+    const viewport = this.viewportCuller.getViewportInfo();
+    
+    // First, populate cache if empty (initial run)
+    if (this.connectionCache.size === 0) {
+      this.connections.forEach((shape, connectionId) => {
+        const [parentId, childId] = connectionId.split('-');
+        const parentNode = this.konvaNodes.get(parentId);
+        const childNode = this.konvaNodes.get(childId);
+        
+        if (parentNode && childNode) {
+          const parentGroup = parentNode.getGroup();
+          const childGroup = childNode.getGroup();
+          const parentRect = parentGroup.children![0] as Konva.Rect;
+          const childRect = childGroup.children![0] as Konva.Rect;
+          
+          const parentPos = {
+            x: parentGroup.x() + parentRect.width() / 2,
+            y: parentGroup.y() + parentRect.height() / 2
+          };
+          const childPos = {
+            x: childGroup.x() + childRect.width() / 2,
+            y: childGroup.y() + childRect.height() / 2
+          };
+          
+          this.connectionCache.set(connectionId, {
+            shape,
+            lastUpdate: { parentPos, childPos }
+          });
+        }
+      });
+    }
+    
+    // Update existing connections efficiently
+    this.connectionCache.forEach((cachedConnection, connectionId) => {
+      const [parentId, childId] = connectionId.split('-');
+      const parentNode = this.konvaNodes.get(parentId);
+      const childNode = this.konvaNodes.get(childId);
+      
+      if (!parentNode || !childNode) return;
+      
+      // Get current visual positions
+      const parentGroup = parentNode.getGroup();
+      const childGroup = childNode.getGroup();
+      const parentRect = parentGroup.children![0] as Konva.Rect;
+      const childRect = childGroup.children![0] as Konva.Rect;
+      
+      const parentPos = {
+        x: parentGroup.x() + parentRect.width() / 2,
+        y: parentGroup.y() + parentRect.height() / 2
+      };
+      const childPos = {
+        x: childGroup.x() + childRect.width() / 2,
+        y: childGroup.y() + childRect.height() / 2
+      };
+
+      // Skip update if positions haven't changed significantly
+      const lastUpdate = cachedConnection.lastUpdate;
+      if (lastUpdate && 
+          Math.abs(parentPos.x - lastUpdate.parentPos.x) < 0.5 &&
+          Math.abs(parentPos.y - lastUpdate.parentPos.y) < 0.5 &&
+          Math.abs(childPos.x - lastUpdate.childPos.x) < 0.5 &&
+          Math.abs(childPos.y - lastUpdate.childPos.y) < 0.5) {
+        return;
+      }
+
+      // Check visibility
+      if (!this.viewportCuller.isConnectionVisible(
+        parentPos.x, parentPos.y, parentRect.width(), parentRect.height(),
+        childPos.x, childPos.y, childRect.width(), childRect.height(),
+        viewport
+      )) {
+        cachedConnection.shape.visible(false);
+        return;
+      }
+
+      // Update connection path efficiently
+      cachedConnection.shape.visible(true);
+      this.updateConnectionPath(cachedConnection.shape, parentPos, childPos);
+      cachedConnection.lastUpdate = { parentPos, childPos };
+    });
+  }
+
+  // Update existing shape's path without recreation
+  private updateConnectionPath(shape: Konva.Shape, parentPos: { x: number; y: number }, childPos: { x: number; y: number }): void {
+    // Use memoized path calculation
+    const pathData = PerformanceUtils.calculateConnectionPath(
+      parentPos.x, parentPos.y, 120, 40,
+      childPos.x, childPos.y, 120, 40
+    );
+
+    // Update the shape's scene function with new path data
+    shape.sceneFunc((context, shape) => {
+      context.beginPath();
+      context.moveTo(pathData.startX, pathData.startY);
+      context.quadraticCurveTo(pathData.controlX, pathData.controlY, pathData.endX, pathData.endY);
+      context.fillStrokeShape(shape);
+    });
+    
+    // Mark shape as needing redraw
+    shape.getLayer()?.batchDraw();
   }
 
   private createConnectionLine(
