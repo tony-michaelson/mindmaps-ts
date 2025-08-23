@@ -47,6 +47,9 @@ export class MindMap {
 
     // Add keyboard shortcuts
     this.initKeyboardShortcuts();
+    
+    // Add viewport change listeners for culling
+    this.initViewportListeners();
   }
 
   private initKeyboardShortcuts(): void {
@@ -78,6 +81,20 @@ export class MindMap {
           this.deleteSelectedNode();
           break;
       }
+    });
+  }
+
+  private initViewportListeners(): void {
+    // Update node visibility when stage is moved or scaled
+    this.stage.on('dragend', () => {
+      this.controller.updateNodeVisibility();
+    });
+    
+    this.stage.on('wheel', () => {
+      // Throttle wheel events to avoid too many updates
+      setTimeout(() => {
+        this.controller.updateNodeVisibility();
+      }, 100);
     });
   }
 

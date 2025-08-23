@@ -123,6 +123,14 @@ export class MindmapController {
     const config = NODE_CONFIGS[type];
     const truncatedText = this.formatNodeText(text);
 
+    // Check if node will be visible before creating
+    const viewport = this.viewportCuller.getViewportInfo();
+    const isVisible = this.viewportCuller.isNodeVisible(
+      position.x, position.y,
+      LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
+      viewport
+    );
+
     const node = new Node({
       x: position.x - LAYOUT_CONFIG.width / 2,
       y: position.y - LAYOUT_CONFIG.height / 2,
@@ -131,6 +139,12 @@ export class MindmapController {
       layer: this.layer,
       customColor: config.color,
     });
+
+    // If node is not visible, make it temporarily transparent
+    if (!isVisible && type !== NodeType.ROOT) {
+      const group = node.getGroup();
+      group.opacity(0.1); // Minimal opacity for off-screen nodes
+    }
 
     this.konvaNodes.set(nodeId, node);
     this.setupNodeInteractions(nodeId);
@@ -147,12 +161,25 @@ export class MindmapController {
       this.rootY
     );
 
+    // Get current viewport for culling
+    const viewport = this.viewportCuller.getViewportInfo();
+
     updatedPositions.forEach((position) => {
       const nodeId = this.findNodeIdByPosition(position);
       if (nodeId) {
         const konvaNode = this.konvaNodes.get(nodeId);
         if (konvaNode) {
-          this.animateToPosition(konvaNode, position);
+          // Check if node will be visible at target position
+          if (this.viewportCuller.isNodeVisible(
+            position.x, position.y, 
+            LAYOUT_CONFIG.width, LAYOUT_CONFIG.height, 
+            viewport
+          )) {
+            this.animateToPosition(konvaNode, position);
+          } else {
+            // For off-screen nodes, just set position without animation
+            this.setPositionWithoutAnimation(konvaNode, position);
+          }
         }
       }
     });
@@ -179,11 +206,20 @@ export class MindmapController {
     tween.play();
   }
 
+  private setPositionWithoutAnimation(node: Node, targetPosition: NodePosition): void {
+    const group = node.getGroup();
+    group.x(targetPosition.x - LAYOUT_CONFIG.width / 2);
+    group.y(targetPosition.y - LAYOUT_CONFIG.height / 2);
+  }
+
   private updateConnections(parentId: string): void {
     const children = this.positioner.getChildren(parentId);
     const parentNode = this.konvaNodes.get(parentId);
 
     if (!parentNode) return;
+
+    // Get current viewport for culling
+    const viewport = this.viewportCuller.getViewportInfo();
 
     children.forEach((childId) => {
       const childNode = this.konvaNodes.get(childId);
@@ -220,6 +256,15 @@ export class MindmapController {
         side: "right" as const
       };
 
+      // Skip connection if not visible in viewport
+      if (!this.viewportCuller.isConnectionVisible(
+        parentPos.x, parentPos.y, parentRect.width(), parentRect.height(),
+        childPos.x, childPos.y, childRect.width(), childRect.height(),
+        viewport
+      )) {
+        return; // Skip creating off-screen connections
+      }
+
       // Create new connection with current visual positions
       const newConnection = this.createConnectionLine(
         parentPos,
@@ -241,6 +286,9 @@ export class MindmapController {
   }
 
   private updateAllConnectionsWithoutDraw(): void {
+    // Get current viewport for culling
+    const viewport = this.viewportCuller.getViewportInfo();
+
     // Update all connections by redrawing them based on current visual node positions
     this.connections.forEach((connection, connectionId) => {
       const [parentId, childId] = connectionId.split('-');
@@ -275,6 +323,16 @@ export class MindmapController {
         
         // Remove old connection
         connection.destroy();
+        
+        // Skip connection if not visible in viewport
+        if (!this.viewportCuller.isConnectionVisible(
+          parentPos.x, parentPos.y, parentRect.width(), parentRect.height(),
+          childPos.x, childPos.y, childRect.width(), childRect.height(),
+          viewport
+        )) {
+          this.connections.delete(connectionId); // Remove from map since it's not visible
+          return; // Skip creating off-screen connections
+        }
         
         // Create new connection with current visual positions
         const newConnection = this.createConnectionLine(parentPos, childPos, parentId, childId);
@@ -501,6 +559,37 @@ export class MindmapController {
   public clearPerformanceCaches(): void {
     PerformanceUtils.clearAllCaches();
     this.incrementalUpdater.reset();
+  }
+
+  // Method to update node visibility based on viewport changes
+  public updateNodeVisibility(): void {
+    const viewport = this.viewportCuller.getViewportInfo();
+    
+    // Skip update if viewport hasn't changed significantly
+    if (this.lastViewport && this.viewportCuller.shouldSkipUpdate(this.lastViewport, viewport)) {
+      return;
+    }
+    
+    this.konvaNodes.forEach((node, nodeId) => {
+      const group = node.getGroup();
+      const centerX = group.x() + LAYOUT_CONFIG.width / 2;
+      const centerY = group.y() + LAYOUT_CONFIG.height / 2;
+      
+      const isVisible = this.viewportCuller.isNodeVisible(
+        centerX, centerY,
+        LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
+        viewport
+      );
+      
+      // Update opacity based on visibility (keep root always visible)
+      const isRoot = nodeId === this.rootId;
+      group.opacity(isVisible || isRoot ? 1.0 : 0.1);
+    });
+    
+    // Update connections based on visibility
+    this.updateAllConnections();
+    
+    this.lastViewport = viewport;
   }
 }
 
