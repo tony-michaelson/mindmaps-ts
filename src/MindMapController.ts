@@ -197,18 +197,22 @@ export class MindmapController {
         const parentGroup = parentNode.getGroup();
         const childGroup = childNode.getGroup();
         
+        // Get actual rectangle dimensions from within the groups
+        const parentRect = parentGroup.children![0] as Konva.Rect; // First child is the rectangle
+        const childRect = childGroup.children![0] as Konva.Rect;
+        
         // Convert visual positions back to logical center positions
         const parentPos = {
-          x: parentGroup.x() + parentGroup.width() / 2,
-          y: parentGroup.y() + parentGroup.height() / 2,
+          x: parentGroup.x() + parentRect.width() / 2,
+          y: parentGroup.y() + parentRect.height() / 2,
           level: 0, // These fields aren't used for connection drawing
           stackIndex: 0,
           side: "right" as const
         };
         
         const childPos = {
-          x: childGroup.x() + childGroup.width() / 2,
-          y: childGroup.y() + childGroup.height() / 2,
+          x: childGroup.x() + childRect.width() / 2,
+          y: childGroup.y() + childRect.height() / 2,
           level: 0,
           stackIndex: 0,
           side: "right" as const
@@ -246,41 +250,24 @@ export class MindmapController {
       });
     }
 
-    const parentWidth = parentNode.getGroup().width();
-    const parentHeight = parentNode.getGroup().height();
-    const childWidth = childNode.getGroup().width();
-    const childHeight = childNode.getGroup().height();
-
-    // Calculate actual visual positions (nodes are positioned at center - width/2)
-    const parentX = parentPos.x - parentWidth / 2;
-    const parentY = parentPos.y - parentHeight / 2;
-    const childX = childPos.x - childWidth / 2;
-    const childY = childPos.y - childHeight / 2;
-
-    // Calculate connection points using the smart algorithm
-    const connector = this.calculateConnector(
-      parentX, parentY, parentWidth, parentHeight,
-      childX, childY, childWidth, childHeight
-    );
+    // Simple center-to-center connection
+    const fromX = parentPos.x;
+    const fromY = parentPos.y;
+    const toX = childPos.x;
+    const toY = childPos.y;
 
     // Create curved line using Konva.Shape with custom drawing
     return new Konva.Shape({
       sceneFunc: (context, shape) => {
         context.beginPath();
-        context.moveTo(connector.from.x, connector.from.y);
+        context.moveTo(fromX, fromY);
         
-        // Calculate control point offset
-        const baseOffset = connector.controlPointOffset * (connector.from.y - connector.to.y);
-        const maxOffset = Math.min(childHeight, parentHeight) * 1.5;
-        const offset = Math.max(-maxOffset, Math.min(maxOffset, baseOffset));
+        // Calculate control point for smooth curve
+        const controlX = fromX;
+        const controlY = toY - (fromY - toY) * 0.5;
         
         // Draw quadratic Bézier curve
-        context.quadraticCurveTo(
-          connector.from.x,
-          connector.to.y - offset,
-          connector.to.x,
-          connector.to.y
-        );
+        context.quadraticCurveTo(controlX, controlY, toX, toY);
         
         context.fillStrokeShape(shape);
       },
@@ -290,66 +277,6 @@ export class MindmapController {
     });
   }
 
-  private calculateConnector(
-    parentX: number, parentY: number, parentWidth: number, parentHeight: number,
-    childX: number, childY: number, childWidth: number, childHeight: number
-  ) {
-    const tolerance = 10;
-    const childMid = childY + childHeight * 0.5;
-    const parentMid = parentY + parentHeight * 0.5;
-
-    // Check if nodes are horizontally aligned
-    if (Math.abs(parentMid - childMid) + tolerance < Math.max(childHeight, parentHeight * 0.75)) {
-      return this.horizontalConnector(
-        parentX, parentY, parentWidth, parentHeight,
-        childX, childY, childWidth, childHeight
-      );
-    } else {
-      return this.verticalConnector(
-        parentX, parentY, parentWidth, parentHeight,
-        childX, childY, childWidth, childHeight
-      );
-    }
-  }
-
-  private horizontalConnector(
-    parentX: number, parentY: number, parentWidth: number, parentHeight: number,
-    childX: number, childY: number, childWidth: number, childHeight: number
-  ) {
-    const childHorizontalOffset = parentX < childX ? 0.1 : 0.9;
-    const parentHorizontalOffset = 1 - childHorizontalOffset;
-    
-    return {
-      from: {
-        x: parentX + parentHorizontalOffset * parentWidth,  // Edge connection
-        y: parentY + 0.5 * parentHeight                     // Vertical center
-      },
-      to: {
-        x: childX + childHorizontalOffset * childWidth,
-        y: childY + 0.5 * childHeight
-      },
-      controlPointOffset: 0  // Minimal curve for horizontal alignment
-    };
-  }
-
-  private verticalConnector(
-    parentX: number, parentY: number, parentWidth: number, parentHeight: number,
-    childX: number, childY: number, childWidth: number, childHeight: number
-  ) {
-    const childHorizontalOffset = parentX < childX ? 0.1 : 0.9;
-    
-    return {
-      from: {
-        x: parentX + 0.5 * parentWidth,      // Horizontal center
-        y: parentY + 0.5 * parentHeight      // Vertical center
-      },
-      to: {
-        x: childX + childHorizontalOffset * childWidth,  // Left/right edge
-        y: childY + 0.5 * childHeight                     // Vertical center
-      },
-      controlPointOffset: 0.75  // Strong curve for vertical separation
-    };
-  }
 
   private setupNodeInteractions(nodeId: string): void {
     const node = this.konvaNodes.get(nodeId);
