@@ -469,19 +469,61 @@ export class MindmapController {
     });
 
     // Add drag handlers for repositioning
+    group.on("dragstart", () => {
+      // Set dragging state for visual feedback
+      const node = this.konvaNodes.get(nodeId);
+      if (node) {
+        node.setDragging(true);
+      }
+    });
+    
     group.on("dragmove", () => {
       // Efficiently update connections while dragging
       this.scheduleSmartConnectionUpdate();
+      
+      // Update drop target highlighting
+      this.updateDropTargetHighlighting(nodeId, group.x(), group.y());
     });
     
     group.on("dragend", () => {
+      // Clear dragging state
+      const node = this.konvaNodes.get(nodeId);
+      if (node) {
+        node.setDragging(false);
+      }
+      
+      // Clear all drop target highlighting
+      this.clearDropTargetHighlighting();
+      
       this.handleNodeDrop(nodeId, group.x(), group.y());
     });
   }
 
   private handleNodeDrop(nodeId: string, dropX: number, dropY: number): void {
     const nodePosition = this.positioner.getNodePosition(nodeId);
-    if (!nodePosition || !nodePosition.parentId) {
+    if (!nodePosition) {
+      return;
+    }
+
+    // Don't allow root node to be reparented
+    if (nodeId === this.rootId) {
+      const position = this.positioner.getNodePosition(nodeId);
+      if (position) {
+        const node = this.konvaNodes.get(nodeId);
+        if (node) this.animateToPosition(node, position);
+      }
+      return;
+    }
+
+    // First, check if the node is being dropped on another node for reparenting
+    const dropTargetId = this.findNodeAtPosition(dropX, dropY, nodeId);
+    if (dropTargetId && this.canReparent(nodeId, dropTargetId)) {
+      this.reparentNode(nodeId, dropTargetId);
+      return;
+    }
+
+    // If no reparenting, handle sibling reordering
+    if (!nodePosition.parentId) {
       // Root node or invalid position - snap back to original
       const position = this.positioner.getNodePosition(nodeId);
       if (position) {
@@ -646,6 +688,144 @@ export class MindmapController {
     }
     
     this.scheduleDraw();
+  }
+
+  private findNodeAtPosition(x: number, y: number, excludeNodeId?: string): string | null {
+    for (const [nodeId, node] of this.konvaNodes) {
+      if (nodeId === excludeNodeId) continue;
+      
+      const group = node.getGroup();
+      const rect = group.findOne('Rect') as Konva.Rect;
+      if (!rect) continue;
+      
+      // Get node bounds
+      const nodeX = group.x();
+      const nodeY = group.y();
+      const nodeWidth = rect.width();
+      const nodeHeight = rect.height();
+      
+      // Check if position is within node bounds
+      if (x >= nodeX && x <= nodeX + nodeWidth &&
+          y >= nodeY && y <= nodeY + nodeHeight) {
+        return nodeId;
+      }
+    }
+    return null;
+  }
+
+  private canReparent(sourceNodeId: string, targetNodeId: string): boolean {
+    // Cannot reparent to itself
+    if (sourceNodeId === targetNodeId) return false;
+    
+    // Cannot reparent to own descendant (would create cycle)
+    return !this.isDescendant(targetNodeId, sourceNodeId);
+  }
+
+  private isDescendant(nodeId: string, ancestorId: string): boolean {
+    const children = this.positioner.getChildren(ancestorId);
+    for (const childId of children) {
+      if (childId === nodeId) return true;
+      if (this.isDescendant(nodeId, childId)) return true;
+    }
+    return false;
+  }
+
+  private reparentNode(nodeId: string, newParentId: string): void {
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    if (!nodePosition) return;
+
+    const oldParentId = nodePosition.parentId;
+    
+    // Remove from old parent
+    if (oldParentId) {
+      this.positioner.removeFromChildrenMap(oldParentId, nodeId);
+      
+      // Remove old connection
+      const oldConnectionId = `${oldParentId}-${nodeId}`;
+      const oldConnection = this.connections.get(oldConnectionId);
+      if (oldConnection) {
+        oldConnection.destroy();
+        this.connections.delete(oldConnectionId);
+      }
+    }
+
+    // Add to new parent
+    this.positioner.addToChildrenMap(newParentId, nodeId);
+    
+    // Update the node's position based on new parent
+    const newParentSide = this.positioner.getNodeSide(newParentId);
+    const newPosition = this.positioner.calculateNodePosition(
+      nodeId,
+      newParentId,
+      newParentSide || "right",
+      this.rootX,
+      this.rootY
+    );
+
+    // Update position in positioner
+    this.positioner.updateNodePosition(nodeId, newPosition);
+
+    // Animate node to new position
+    const node = this.konvaNodes.get(nodeId);
+    if (node) {
+      this.animateToPosition(node, newPosition);
+    }
+
+    // Reposition siblings in both old and new parent hierarchies
+    if (oldParentId) {
+      this.repositionSiblings(oldParentId);
+      this.updateConnectionsSimple(oldParentId);
+    }
+    
+    this.repositionSiblings(newParentId);
+    this.updateConnectionsSimple(newParentId);
+    
+    // Recursively reposition all descendants
+    this.repositionDescendants(nodeId);
+  }
+
+  private repositionDescendants(parentId: string): void {
+    const children = this.positioner.getChildren(parentId);
+    children.forEach(childId => {
+      const parentSide = this.positioner.getNodeSide(parentId);
+      const childPosition = this.positioner.calculateNodePosition(
+        childId,
+        parentId,
+        parentSide || "right",
+        this.rootX,
+        this.rootY
+      );
+      
+      this.positioner.updateNodePosition(childId, childPosition);
+      
+      const childNode = this.konvaNodes.get(childId);
+      if (childNode) {
+        this.animateToPosition(childNode, childPosition);
+      }
+      
+      // Recursively reposition grandchildren
+      this.repositionDescendants(childId);
+    });
+    
+    this.updateConnectionsSimple(parentId);
+  }
+
+  private updateDropTargetHighlighting(draggedNodeId: string, dragX: number, dragY: number): void {
+    // Clear all previous highlighting first
+    this.konvaNodes.forEach(node => node.setDropTarget(false));
+    
+    // Find potential drop targets
+    const dropTargetId = this.findNodeAtPosition(dragX, dragY, draggedNodeId);
+    if (dropTargetId && this.canReparent(draggedNodeId, dropTargetId)) {
+      const dropTargetNode = this.konvaNodes.get(dropTargetId);
+      if (dropTargetNode) {
+        dropTargetNode.setDropTarget(true);
+      }
+    }
+  }
+
+  private clearDropTargetHighlighting(): void {
+    this.konvaNodes.forEach(node => node.setDropTarget(false));
   }
 
   private removeNodeRecursive(nodeId: string): void {

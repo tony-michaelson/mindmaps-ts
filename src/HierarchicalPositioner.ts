@@ -171,6 +171,13 @@ export class HierarchicalPositioner {
     this.childrenMap.set(parentId, children);
   }
 
+  updateNodePosition(nodeId: string, position: NodePosition): void {
+    this.nodePositions.set(nodeId, position);
+    if (position.side) {
+      this.nodeSides.set(nodeId, position.side);
+    }
+  }
+
   removeNode(nodeId: string): void {
     this.nodePositions.delete(nodeId);
     this.nodeSides.delete(nodeId);
