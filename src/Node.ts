@@ -1,4 +1,5 @@
 import Konva from "konva";
+import { PerformanceUtils } from "./PerformanceUtils";
 
 export class Node {
   private group: Konva.Group;
@@ -35,8 +36,8 @@ export class Node {
       name: "mindmap-node",
     });
 
-    // Wrap text according to 25 character limit
-    const wrappedText = this.wrapText(text, 25);
+    // Wrap text according to 25 character limit using memoized function
+    const wrappedText = PerformanceUtils.wrapText(text, 25);
 
     // Determine background color
     const backgroundColor =
@@ -44,6 +45,13 @@ export class Node {
       (isRoot
         ? Node.defaultStyles.root.background
         : Node.defaultStyles.nonRoot.background);
+
+    // Use memoized node dimensions calculation
+    const { width: nodeWidth, height: nodeHeight } = PerformanceUtils.calculateNodeDimensions(
+      wrappedText, 
+      isRoot ? "ROOT" : "NORMAL", 
+      isRoot
+    );
 
     const label = new Konva.Text({
       text: wrappedText,
@@ -57,12 +65,10 @@ export class Node {
       listening: false,
     });
 
-    // Measure text dimensions
-    const textWidth = label.width();
-    const textHeight = label.height();
-
-    const nodeWidth = textWidth + this.padding * 2;
-    const nodeHeight = textHeight + this.padding * 2;
+    // Position text with calculated padding
+    const textWidth = nodeWidth - this.padding * 2;
+    const textHeight = nodeHeight - this.padding * 2;
+    label.width(textWidth);
 
     const rect = new Konva.Rect({
       width: nodeWidth,
@@ -89,25 +95,6 @@ export class Node {
     this.layer.add(this.group);
   }
 
-  // Helper function to wrap text at 25 character limit
-  private wrapText(text: string, maxChars: number = 25): string {
-    if (text.length <= maxChars) return text;
-
-    const words = text.split(" ");
-    let result = "";
-    let currentLine = "";
-
-    for (const word of words) {
-      if ((currentLine + word).length <= maxChars) {
-        currentLine += (currentLine ? " " : "") + word;
-      } else {
-        result += (result ? "\n" : "") + currentLine;
-        currentLine = word;
-      }
-    }
-
-    return result + (currentLine ? (result ? "\n" : "") + currentLine : "");
-  }
 
   // Helper function to calculate text color based on background luminosity
   private getTextColor(backgroundColor: string): string {

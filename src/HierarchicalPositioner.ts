@@ -1,5 +1,6 @@
 import { NodePosition, LAYOUT_CONFIG } from "./NodePosition";
 import { TreeLayoutCalculator, TreeNode, LayoutResult } from "./TreeLayout";
+import { PerformanceUtils } from "./PerformanceUtils";
 
 export class HierarchicalPositioner {
   private nodePositions: Map<string, NodePosition> = new Map();
@@ -15,6 +16,17 @@ export class HierarchicalPositioner {
     rootX: number,
     rootY: number
   ): NodePosition {
+    // Use memoized calculation for position if possible
+    const cachedPosition = PerformanceUtils.calculateLayoutPosition(
+      nodeId,
+      parentId,
+      side,
+      rootX,
+      rootY,
+      (this.childrenMap.get(parentId || '') || []).length,
+      parentId ? (this.nodePositions.get(parentId)?.level || 0) + 1 : 0
+    );
+
     // Store node dimensions for layout calculations
     this.nodeData.set(nodeId, { 
       width: LAYOUT_CONFIG.width, 
@@ -47,10 +59,10 @@ export class HierarchicalPositioner {
 
     this.nodeSides.set(nodeId, nodeSide);
 
-    // Create temporary position - will be recalculated with outline-based layout
+    // Use cached position if available, otherwise create temporary position
     const position: NodePosition = {
-      x: rootX, // Will be updated by outline calculation
-      y: rootY, // Will be updated by outline calculation
+      x: cachedPosition.x || rootX, // Use cached or fallback
+      y: cachedPosition.y || rootY, // Use cached or fallback  
       level: parentPos.level + 1,
       parentId,
       stackIndex,

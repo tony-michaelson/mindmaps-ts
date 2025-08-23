@@ -304,25 +304,24 @@ export class MindmapController {
       });
     }
 
-    // Simple center-to-center connection
-    const fromX = parentPos.x;
-    const fromY = parentPos.y;
-    const toX = childPos.x;
-    const toY = childPos.y;
+    // Get node dimensions for memoization
+    const parentGroup = parentNode.getGroup();
+    const childGroup = childNode.getGroup();
+    const parentRect = parentGroup.children![0] as Konva.Rect;
+    const childRect = childGroup.children![0] as Konva.Rect;
 
-    // Create curved line using Konva.Shape with custom drawing
+    // Use memoized connection path calculation
+    const pathData = PerformanceUtils.calculateConnectionPath(
+      parentPos.x, parentPos.y, parentRect.width(), parentRect.height(),
+      childPos.x, childPos.y, childRect.width(), childRect.height()
+    );
+
+    // Create curved line using cached path data
     return new Konva.Shape({
       sceneFunc: (context, shape) => {
         context.beginPath();
-        context.moveTo(fromX, fromY);
-        
-        // Calculate control point for smooth curve
-        const controlX = fromX;
-        const controlY = toY - (fromY - toY) * 0.5;
-        
-        // Draw quadratic Bézier curve
-        context.quadraticCurveTo(controlX, controlY, toX, toY);
-        
+        context.moveTo(pathData.startX, pathData.startY);
+        context.quadraticCurveTo(pathData.controlX, pathData.controlY, pathData.endX, pathData.endY);
         context.fillStrokeShape(shape);
       },
       stroke: "#838383ff",

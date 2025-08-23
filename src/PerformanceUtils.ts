@@ -1,3 +1,4 @@
+import Konva from "konva";
 import { NodePosition } from "./NodePosition";
 
 interface MemoizeCache<T> {
@@ -50,6 +51,11 @@ export class PerformanceUtils {
       `${nodeId}|${parentId}|${side}|${rootX}|${rootY}|${childCount}|${level}`
   );
 
+  private static textWrappingCache = memoize(
+    PerformanceUtils.wrapTextInner,
+    (text, maxChars) => `${text}|${maxChars}`
+  );
+
   static calculateConnectionPath(
     fromX: number, fromY: number, fromWidth: number, fromHeight: number,
     toX: number, toY: number, toWidth: number, toHeight: number
@@ -85,16 +91,28 @@ export class PerformanceUtils {
     nodeType: string,
     isRoot: boolean
   ): { width: number; height: number } {
-    const baseWidth = 120;
-    const baseHeight = 40;
+    // Create a temporary text object to measure actual dimensions
+    const tempText = new Konva.Text({
+      text: text,
+      fontFamily: "Helvetica",
+      fontSize: 12,
+      fontStyle: "bold",
+      lineHeight: 1.5,
+    });
     
-    const textMultiplier = Math.max(1, text.length / 10);
-    const typeMultiplier = nodeType === 'ROOT' ? 1.5 : 1;
-    const rootMultiplier = isRoot ? 1.2 : 1;
+    const padding = 16; // 8 * 2
+    const textWidth = tempText.width();
+    const textHeight = tempText.height();
+    
+    const nodeWidth = Math.max(80, textWidth + padding); // Minimum width
+    const nodeHeight = Math.max(32, textHeight + padding); // Minimum height
+    
+    // Clean up temp object
+    tempText.destroy();
     
     return {
-      width: Math.ceil(baseWidth * textMultiplier * typeMultiplier * rootMultiplier),
-      height: Math.ceil(baseHeight * rootMultiplier)
+      width: Math.ceil(nodeWidth),
+      height: Math.ceil(nodeHeight)
     };
   }
 
@@ -129,10 +147,34 @@ export class PerformanceUtils {
     };
   }
 
+  static wrapText(text: string, maxChars: number = 25): string {
+    return this.textWrappingCache(text, maxChars);
+  }
+
+  private static wrapTextInner(text: string, maxChars: number = 25): string {
+    if (text.length <= maxChars) return text;
+
+    const words = text.split(" ");
+    let result = "";
+    let currentLine = "";
+
+    for (const word of words) {
+      if ((currentLine + word).length <= maxChars) {
+        currentLine += (currentLine ? " " : "") + word;
+      } else {
+        result += (result ? "\n" : "") + currentLine;
+        currentLine = word;
+      }
+    }
+
+    return result + (currentLine ? (result ? "\n" : "") + currentLine : "");
+  }
+
   static clearAllCaches(): void {
     this.connectionPathCache.clear();
     this.nodeDimensionCache.clear();
     this.layoutCalculationCache.clear();
+    this.textWrappingCache.clear();
   }
 
   static clearConnectionCache(): void {
@@ -147,7 +189,8 @@ export class PerformanceUtils {
     return {
       connectionPaths: Object.keys(this.connectionPathCache.cache).length,
       nodeDimensions: Object.keys(this.nodeDimensionCache.cache).length,
-      layoutCalculations: Object.keys(this.layoutCalculationCache.cache).length
+      layoutCalculations: Object.keys(this.layoutCalculationCache.cache).length,
+      textWrapping: Object.keys(this.textWrappingCache.cache).length
     };
   }
 }
