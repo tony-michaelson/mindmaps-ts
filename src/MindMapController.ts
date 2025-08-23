@@ -7,6 +7,12 @@ import {
   NODE_CONFIGS,
   LAYOUT_CONFIG,
 } from "./NodePosition";
+import { PerformanceUtils } from "./PerformanceUtils";
+import { ViewportCuller, ViewportInfo } from "./ViewportCuller";
+import { BatchManager, BatchOperation } from "./BatchManager";
+import { IncrementalUpdater, NodeState, ConnectionState } from "./IncrementalUpdater";
+import { DrawManager } from "./DrawManager";
+import { ObjectPoolManager, PoolableConnection } from "./ObjectPool";
 
 export class MindmapController {
   private positioner = new HierarchicalPositioner();
@@ -19,11 +25,32 @@ export class MindmapController {
   private nodeCounter = 0;
   private selectedNodeId: string | null = null;
   public onNodeSelected?: (nodeId: string | null) => void;
+  
+  // Performance optimization components
+  private viewportCuller: ViewportCuller;
+  private batchManager: BatchManager;
+  private incrementalUpdater: IncrementalUpdater;
+  private drawManager: DrawManager;
+  private objectPool: ObjectPoolManager;
+  private lastViewport: ViewportInfo | null = null;
 
-  constructor(layer: Konva.Layer, rootX: number, rootY: number) {
+  constructor(layer: Konva.Layer, rootX: number, rootY: number, stage?: Konva.Stage) {
     this.layer = layer;
     this.rootX = rootX;
     this.rootY = rootY;
+    
+    // Initialize performance components
+    this.viewportCuller = new ViewportCuller(stage || layer.getStage(), 100);
+    this.batchManager = new BatchManager(
+      { maxBatchSize: 50, maxBatchTime: 16, autoCommit: true },
+      this.handleBatchCommit.bind(this)
+    );
+    this.incrementalUpdater = new IncrementalUpdater();
+    this.drawManager = new DrawManager(16, 5);
+    this.objectPool = new ObjectPoolManager({ connections: 200, rects: 100, texts: 100 });
+    
+    // Pre-allocate some pooled objects
+    this.objectPool.preAllocate({ connections: 20, rects: 10, texts: 10 });
   }
 
   createRootNode(text: string): string {
@@ -381,4 +408,75 @@ export class MindmapController {
     this.positioner.removeNode(nodeId);
     this.layer.draw();
   }
+  
+  // Add performance optimization methods
+  private handleBatchCommit(operations: BatchOperation[], batchId: string): void {
+    // Process batched operations for optimal performance
+    let needsLayoutRecalculation = false;
+    let needsConnectionUpdate = false;
+    
+    for (const op of operations) {
+      switch (op.type) {
+        case 'ADD_NODE':
+        case 'REMOVE_NODE':
+          needsLayoutRecalculation = true;
+          needsConnectionUpdate = true;
+          break;
+        case 'MOVE_NODE':
+          needsConnectionUpdate = true;
+          break;
+        case 'LAYOUT_CHANGE':
+          needsLayoutRecalculation = true;
+          needsConnectionUpdate = true;
+          break;
+        case 'UPDATE_CONNECTION':
+          needsConnectionUpdate = true;
+          break;
+      }
+    }
+    
+    // Execute updates in optimal order
+    if (needsLayoutRecalculation) {
+      // Clear layout cache when structure changes
+      PerformanceUtils.clearLayoutCache();
+    }
+    
+    if (needsConnectionUpdate) {
+      // Clear connection cache when positions change
+      PerformanceUtils.clearConnectionCache();
+      // Defer connection updates to next frame for better performance
+      this.drawManager.scheduleDrawNextFrame(this.layer);
+    }
+  }
+  
+  public getPerformanceStats() {
+    return {
+      cache: PerformanceUtils.getCacheStats(),
+      viewport: this.viewportCuller.getCullingMargin(),
+      batch: this.batchManager.getStats(),
+      draw: this.drawManager.getDrawStats(),
+      pool: this.objectPool.getStats(),
+      nodes: this.konvaNodes.size,
+      connections: this.connections.size
+    };
+  }
+  
+  public optimizeForLargeDataset(): void {
+    // Increase culling margin for better performance with large datasets
+    this.viewportCuller.setCullingMargin(200);
+    
+    // Reduce draw frequency for large datasets
+    this.drawManager.setMinDrawInterval(33); // ~30fps
+    
+    // Pre-allocate more pooled objects
+    this.objectPool.preAllocate({ connections: 100, rects: 50, texts: 50 });
+  }
+  
+  public clearPerformanceCaches(): void {
+    PerformanceUtils.clearAllCaches();
+    this.incrementalUpdater.reset();
+  }
 }
+
+// Export performance utilities for external access
+export { PerformanceUtils, ViewportCuller, BatchManager, DrawManager, ObjectPoolManager };

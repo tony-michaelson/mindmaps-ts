@@ -24,11 +24,12 @@ export class MindMap {
     this.centerX = width / 2;
     this.centerY = height / 2;
 
-    // Initialize controller
+    // Initialize controller with stage for performance optimizations
     this.controller = new MindmapController(
       this.layer,
       this.centerX,
-      this.centerY
+      this.centerY,
+      this.stage
     );
 
     // Set up selection callback
@@ -201,5 +202,49 @@ export class MindMap {
 
   public getController(): MindmapController {
     return this.controller;
+  }
+  
+  // Performance monitoring and optimization methods
+  public getPerformanceStats() {
+    return this.controller.getPerformanceStats();
+  }
+  
+  public optimizeForLargeDataset(): void {
+    this.controller.optimizeForLargeDataset();
+  }
+  
+  public clearPerformanceCaches(): void {
+    this.controller.clearPerformanceCaches();
+  }
+  
+  // Batch multiple operations for better performance
+  public batchOperations<T>(operations: (() => T)[]): T[] {
+    const results: T[] = [];
+    
+    // Temporarily disable auto-redraw during batch
+    const originalDrawMethod = this.layer.draw.bind(this.layer);
+    let drawScheduled = false;
+    
+    // Override draw to just set flag instead of drawing
+    (this.layer as any).draw = () => {
+      drawScheduled = true;
+      return this.layer;
+    };
+    
+    try {
+      for (const operation of operations) {
+        results.push(operation());
+      }
+    } finally {
+      // Restore original draw method
+      this.layer.draw = originalDrawMethod;
+      
+      // Draw once at the end if any operation wanted to draw
+      if (drawScheduled) {
+        this.layer.draw();
+      }
+    }
+    
+    return results;
   }
 }
