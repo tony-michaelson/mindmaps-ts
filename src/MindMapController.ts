@@ -75,15 +75,24 @@ export class MindmapController {
     }
 
     const nodeId = this.generateNodeId();
-    const position = this.positioner.calculateNodePosition(
+    
+    // Get parent (root) position to start new node there
+    const rootNode = this.konvaNodes.get(this.rootId);
+    const rootPosition = rootNode ? {
+      x: rootNode.getGroup().x() + LAYOUT_CONFIG.width / 2,
+      y: rootNode.getGroup().y() + LAYOUT_CONFIG.height / 2
+    } : { x: this.rootX, y: this.rootY };
+
+    // Create node at parent's position initially
+    const startPosition = this.positioner.calculateNodePosition(
       nodeId,
       this.rootId,
       side,
-      this.rootX,
-      this.rootY
+      rootPosition.x, // Start at parent's current position
+      rootPosition.y
     );
 
-    this.createAndPositionNode(nodeId, position, text, type);
+    this.createAndPositionNodeAtParent(nodeId, startPosition, text, type, this.rootId);
     this.updateChildrenMap(this.rootId, nodeId);
     this.repositionSiblings(this.rootId);
     this.updateConnections(this.rootId);
@@ -98,15 +107,24 @@ export class MindmapController {
     }
 
     const nodeId = this.generateNodeId();
-    const position = this.positioner.calculateNodePosition(
+    
+    // Get parent position to start new node there
+    const parentNode = this.konvaNodes.get(parentId);
+    const parentPosition = parentNode ? {
+      x: parentNode.getGroup().x() + LAYOUT_CONFIG.width / 2,
+      y: parentNode.getGroup().y() + LAYOUT_CONFIG.height / 2
+    } : { x: this.rootX, y: this.rootY };
+
+    // Create node at parent's position initially
+    const startPosition = this.positioner.calculateNodePosition(
       nodeId,
       parentId,
       parentSide,
-      this.rootX,
-      this.rootY
+      parentPosition.x, // Start at parent's current position
+      parentPosition.y
     );
 
-    this.createAndPositionNode(nodeId, position, text, type);
+    this.createAndPositionNodeAtParent(nodeId, startPosition, text, type, parentId);
     this.updateChildrenMap(parentId, nodeId);
     this.repositionSiblings(parentId);
     this.updateConnections(parentId);
@@ -144,6 +162,50 @@ export class MindmapController {
     if (!isVisible && type !== NodeType.ROOT) {
       const group = node.getGroup();
       group.opacity(0.1); // Minimal opacity for off-screen nodes
+    }
+
+    this.konvaNodes.set(nodeId, node);
+    this.setupNodeInteractions(nodeId);
+  }
+
+  private createAndPositionNodeAtParent(
+    nodeId: string,
+    position: NodePosition,
+    text: string,
+    type: NodeType,
+    parentId: string
+  ): void {
+    const config = NODE_CONFIGS[type];
+    const truncatedText = this.formatNodeText(text);
+
+    // Get parent's current visual position
+    const parentNode = this.konvaNodes.get(parentId);
+    const parentGroup = parentNode?.getGroup();
+    const parentX = parentGroup ? parentGroup.x() : position.x - LAYOUT_CONFIG.width / 2;
+    const parentY = parentGroup ? parentGroup.y() : position.y - LAYOUT_CONFIG.height / 2;
+
+    // Create node at parent's position (will animate to target during repositionSiblings)
+    const node = new Node({
+      x: parentX, // Start at parent's visual position
+      y: parentY, // Start at parent's visual position
+      text: truncatedText,
+      isRoot: type === NodeType.ROOT,
+      layer: this.layer,
+      customColor: config.color,
+    });
+
+    // Check visibility for optimization
+    const viewport = this.viewportCuller.getViewportInfo();
+    const isVisible = this.viewportCuller.isNodeVisible(
+      position.x, position.y,
+      LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
+      viewport
+    );
+
+    // If node is not visible, make it temporarily transparent
+    if (!isVisible && type !== NodeType.ROOT) {
+      const group = node.getGroup();
+      group.opacity(0.1);
     }
 
     this.konvaNodes.set(nodeId, node);
