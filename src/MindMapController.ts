@@ -147,6 +147,7 @@ export class MindmapController {
       layer: this.layer,
       customColor: config.color,
       onTextChange: (newText: string) => this.handleNodeTextChange(nodeId, newText),
+      onSizeChange: () => this.handleNodeSizeChange(nodeId),
     });
 
     this.konvaNodes.set(nodeId, node);
@@ -1031,6 +1032,40 @@ export class MindmapController {
         this.updateConnectionsSimple(nodePosition.parentId!);
       }, 50);
     }
+  }
+
+  private handleNodeSizeChange(nodeId: string): void {
+    // Update connections in real-time as the node size changes
+    this.updateSingleNodeConnectionImmediate(nodeId);
+  }
+
+  private updateSingleNodeConnectionImmediate(nodeId: string): void {
+    // Update connection FROM parent TO this node (if it has a parent)
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    if (nodePosition && nodePosition.parentId) {
+      const connectionId = `${nodePosition.parentId}-${nodeId}`;
+      this.updateConnectionPathImmediate(connectionId, nodePosition.parentId, nodeId);
+    }
+    
+    // Update connections FROM this node TO its children
+    const children = this.positioner.getChildren(nodeId);
+    children.forEach(childId => {
+      const connectionId = `${nodeId}-${childId}`;
+      this.updateConnectionPathImmediate(connectionId, nodeId, childId);
+    });
+    
+    // Single draw call for all connection updates
+    this.layer.draw();
+  }
+
+  private updateConnectionPathImmediate(connectionId: string, parentId: string, childId: string): void {
+    const oldConnection = this.connections.get(connectionId);
+    if (!oldConnection) return;
+    
+    // Remove old connection and create new one with current visual positions
+    // This approach is more reliable than modifying sceneFunc
+    oldConnection.destroy();
+    this.createConnectionFromVisualPositions(parentId, childId);
   }
 
   private removeNodeRecursive(nodeId: string): void {

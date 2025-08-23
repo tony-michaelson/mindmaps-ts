@@ -51,7 +51,7 @@ export class MindMap {
   private initKeyboardShortcuts(): void {
     window.addEventListener("keydown", (e) => {
       const isEditing = this.controller.isAnyNodeEditing();
-      console.log('🎮 MindMap keydown:', e.key, 'isEditing:', isEditing);
+      // console.log('🎮 MindMap keydown:', e.key, 'isEditing:', isEditing);
       
       // Only handle shortcuts when no input is focused and no node is being edited
       if (
@@ -59,11 +59,11 @@ export class MindMap {
         document.activeElement?.tagName === "TEXTAREA" ||
         isEditing
       ) {
-        console.log('🚫 MindMap skipping key handling - input focused or node editing');
+        // console.log('🚫 MindMap skipping key handling - input focused or node editing');
         return;
       }
 
-      console.log('✅ MindMap handling key:', e.key);
+      // console.log('✅ MindMap handling key:', e.key);
       switch (e.key) {
         case "ArrowRight":
           e.preventDefault();

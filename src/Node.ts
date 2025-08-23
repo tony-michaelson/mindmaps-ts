@@ -16,6 +16,7 @@ export class Node {
   private textElement: Konva.Text;
   private rectElement: Konva.Rect;
   private onTextChange?: (newText: string) => void;
+  private onSizeChange?: () => void;
 
   // Default styles from layout.js
   private static readonly defaultStyles = {
@@ -31,9 +32,11 @@ export class Node {
     layer: Konva.Layer;
     customColor?: string;
     onTextChange?: (newText: string) => void;
+    onSizeChange?: () => void;
   }) {
-    const { x, y, text, isRoot = false, layer, customColor, onTextChange } = params;
+    const { x, y, text, isRoot = false, layer, customColor, onTextChange, onSizeChange } = params;
     this.onTextChange = onTextChange;
+    this.onSizeChange = onSizeChange;
     this.currentText = text;
 
     this.layer = layer;
@@ -278,7 +281,7 @@ export class Node {
   public startEditing(): void {
     if (this.isEditing) return;
     
-    console.log('🎯 Starting edit mode for node with text:', this.currentText);
+    // console.log('🎯 Starting edit mode for node with text:', this.currentText);
     this.isEditing = true;
     this.currentText = this.textElement.text();
     
@@ -290,33 +293,33 @@ export class Node {
     this.rectElement.strokeWidth(2);
     this.layer.draw();
     
-    console.log('✅ Edit mode active, listening for keyboard events');
+    // console.log('✅ Edit mode active, listening for keyboard events');
   }
 
   private handleKeydown = (e: KeyboardEvent): void => {
     if (!this.isEditing) return;
     
-    console.log('⌨️ Node keydown event:', e.key, 'code:', e.code);
+    // console.log('⌨️ Node keydown event:', e.key, 'code:', e.code);
     e.preventDefault();
     e.stopPropagation();
     
     // Handle special keys
     switch (e.key) {
       case 'Enter':
-        console.log('📝 Finishing edit');
+        // console.log('📝 Finishing edit');
         this.finishEditing();
         return;
       case 'Escape':
-        console.log('❌ Canceling edit');
+        // console.log('❌ Canceling edit');
         this.cancelEditing();
         return;
       case 'Backspace':
-        console.log('⬅️ Backspace - removing character');
+        // console.log('⬅️ Backspace - removing character');
         this.currentText = this.currentText.slice(0, -1);
         this.updateDisplayText();
         return;
       case 'Delete':
-        console.log('🗑️ Delete - removing character');
+        // console.log('🗑️ Delete - removing character');
         this.currentText = this.currentText.slice(0, -1);
         this.updateDisplayText();
         return;
@@ -326,11 +329,11 @@ export class Node {
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       // Check length limit
       if (this.currentText.length < LAYOUT_CONFIG.maxNodeTextLength) {
-        console.log('➕ Adding character:', e.key, 'to text:', this.currentText);
+        // console.log('➕ Adding character:', e.key, 'to text:', this.currentText);
         this.currentText += e.key;
         this.updateDisplayText();
       } else {
-        console.log('⚠️ Text length limit reached');
+        // console.log('⚠️ Text length limit reached');
       }
     }
   };
@@ -338,6 +341,10 @@ export class Node {
   private updateDisplayText(): void {
     const wrappedText = this.wrapText(this.currentText, 25);
     this.textElement.text(wrappedText);
+    
+    // Store previous dimensions to check if size changed
+    const oldWidth = this.rectElement.width();
+    const oldHeight = this.rectElement.height();
     
     // Measure new text dimensions
     const textWidth = this.textElement.width();
@@ -354,12 +361,17 @@ export class Node {
     this.textElement.y(this.padding);
     
     this.layer.draw();
+    
+    // Notify about size changes for connection updates
+    if ((oldWidth !== nodeWidth || oldHeight !== nodeHeight) && this.onSizeChange) {
+      this.onSizeChange();
+    }
   }
 
   private finishEditing(): void {
     if (!this.isEditing) return;
     
-    console.log('📝 Finishing edit with text:', this.currentText);
+    // console.log('📝 Finishing edit with text:', this.currentText);
     this.isEditing = false;
     document.removeEventListener('keydown', this.handleKeydown, true);
     
@@ -377,7 +389,7 @@ export class Node {
   private cancelEditing(): void {
     if (!this.isEditing) return;
     
-    console.log('❌ Canceling edit');
+    // console.log('❌ Canceling edit');
     this.isEditing = false;
     document.removeEventListener('keydown', this.handleKeydown, true);
     
