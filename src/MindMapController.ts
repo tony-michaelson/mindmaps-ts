@@ -151,11 +151,30 @@ export class MindmapController {
     });
 
     this.konvaNodes.set(nodeId, node);
+
+    // Update the positioner with the node's actual dimensions after creation
+    const group = node.getGroup();
+    const rect = group.findOne('Rect') as Konva.Rect;
+    if (rect) {
+      this.positioner.updateNodeDimensions(nodeId, rect.width(), rect.height());
+    }
+
     this.setupNodeInteractions(nodeId);
   }
 
   private updateChildrenMap(parentId: string, childId: string): void {
     this.positioner.addToChildrenMap(parentId, childId);
+  }
+
+  private updateAllNodeDimensions(): void {
+    // Update the positioner with current dimensions from all visual nodes
+    this.konvaNodes.forEach((node, nodeId) => {
+      const group = node.getGroup();
+      const rect = group.findOne('Rect') as Konva.Rect;
+      if (rect) {
+        this.positioner.updateNodeDimensions(nodeId, rect.width(), rect.height());
+      }
+    });
   }
 
   private repositionSiblings(parentId: string): void {
@@ -178,11 +197,17 @@ export class MindmapController {
 
   private animateToPosition(node: Node, targetPosition: NodePosition): void {
     const group = node.getGroup();
+    const rect = group.findOne('Rect') as Konva.Rect;
+    
+    // Use actual node dimensions for positioning
+    const nodeWidth = rect ? rect.width() : LAYOUT_CONFIG.width;
+    const nodeHeight = rect ? rect.height() : LAYOUT_CONFIG.height;
+    
     const tween = new Konva.Tween({
       node: group,
       duration: 0.4,
-      x: targetPosition.x - LAYOUT_CONFIG.width / 2,
-      y: targetPosition.y - LAYOUT_CONFIG.height / 2,
+      x: targetPosition.x - nodeWidth / 2,
+      y: targetPosition.y - nodeHeight / 2,
       easing: Konva.Easings.EaseInOut,
       onUpdate: () => {
         // Schedule efficient connection update during animation
@@ -199,11 +224,17 @@ export class MindmapController {
 
   private animateToPositionWithCallback(node: Node, targetPosition: NodePosition, onComplete: () => void): void {
     const group = node.getGroup();
+    const rect = group.findOne('Rect') as Konva.Rect;
+    
+    // Use actual node dimensions for positioning
+    const nodeWidth = rect ? rect.width() : LAYOUT_CONFIG.width;
+    const nodeHeight = rect ? rect.height() : LAYOUT_CONFIG.height;
+    
     const tween = new Konva.Tween({
       node: group,
       duration: 0.4,
-      x: targetPosition.x - LAYOUT_CONFIG.width / 2,
-      y: targetPosition.y - LAYOUT_CONFIG.height / 2,
+      x: targetPosition.x - nodeWidth / 2,
+      y: targetPosition.y - nodeHeight / 2,
       easing: Konva.Easings.EaseInOut,
       onUpdate: () => {
         // Keep connections visible during animation by updating them
@@ -607,6 +638,9 @@ export class MindmapController {
     
     // Update the children map with the new order
     this.positioner.setChildrenArray(parentId, siblings);
+    
+    // Update all node dimensions before repositioning to prevent overlaps
+    this.updateAllNodeDimensions();
     
     // Reposition all siblings to reflect the new order
     this.repositionSiblings(parentId);

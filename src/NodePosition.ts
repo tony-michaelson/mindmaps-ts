@@ -48,7 +48,7 @@ export const LAYOUT_CONFIG = {
   width: 120,
   height: 40,
   horizontalSpacing: 8.75, // Reduced by 50% (17.5 * 0.5 = 8.75)
-  verticalSpacing: 17.5, // Reduced by 65% (50 * 0.35 = 17.5)
+  verticalSpacing: 15, // 15 pixels between node borders
   maxTextLength: 25,
   maxNodeTextLength: 120, // Maximum characters for dynamic text expansion
 };

@@ -15,11 +15,13 @@ export class HierarchicalPositioner {
     rootX: number,
     rootY: number
   ): NodePosition {
-    // Store node dimensions for layout calculations
-    this.nodeData.set(nodeId, { 
-      width: LAYOUT_CONFIG.width, 
-      height: LAYOUT_CONFIG.height 
-    });
+    // Only set default dimensions if not already stored
+    if (!this.nodeData.has(nodeId)) {
+      this.nodeData.set(nodeId, { 
+        width: LAYOUT_CONFIG.width, 
+        height: LAYOUT_CONFIG.height 
+      });
+    }
 
     if (!parentId) {
       // Root node - always centered
@@ -95,9 +97,9 @@ export class HierarchicalPositioner {
     layoutResults.forEach(result => {
       const nodePos = this.nodePositions.get(result.nodeId);
       if (nodePos) {
-        // TreeLayout returns top-left coordinates, convert to center coordinates
-        nodePos.x = result.x + result.width / 2;
-        nodePos.y = result.y + result.height / 2;
+        // TreeLayout returns center coordinates, use them directly
+        nodePos.x = result.x;
+        nodePos.y = result.y;
         updatedPositions.push(nodePos);
       }
     });
@@ -187,5 +189,9 @@ export class HierarchicalPositioner {
     this.nodeSides.delete(nodeId);
     this.childrenMap.delete(nodeId);
     this.nodeData.delete(nodeId);
+  }
+
+  updateNodeDimensions(nodeId: string, width: number, height: number): void {
+    this.nodeData.set(nodeId, { width, height });
   }
 }
