@@ -8,6 +8,10 @@ export class HierarchicalPositioner {
   private nodeSides: Map<string, "left" | "right"> = new Map();
   private layoutCalculator = new TreeLayoutCalculator();
   private nodeData: Map<string, { width: number; height: number }> = new Map();
+  
+  // Fast-path mode for large datasets - skips complex outline calculations
+  private fastPathMode = false;
+  private readonly FAST_PATH_THRESHOLD = 100; // Switch to fast path after 100 nodes
 
   calculateNodePosition(
     nodeId: string,
@@ -79,8 +83,141 @@ export class HierarchicalPositioner {
     rootX: number,
     rootY: number
   ): NodePosition[] {
-    // Trigger full outline-based layout recalculation
-    return this.recalculateLayout(rootX, rootY);
+    // Check if we should enable fast-path mode
+    this.updateFastPathMode();
+    
+    // Use incremental updates instead of full recalculation
+    return this.repositionSiblingsIncremental(parentId, rootX, rootY);
+  }
+
+  private updateFastPathMode(): void {
+    const totalNodes = this.nodePositions.size;
+    this.fastPathMode = totalNodes > this.FAST_PATH_THRESHOLD;
+  }
+
+  // Incremental repositioning - only affects siblings of the parent node
+  private repositionSiblingsIncremental(
+    parentId: string,
+    rootX: number,
+    rootY: number
+  ): NodePosition[] {
+    const children = this.childrenMap.get(parentId) || [];
+    if (children.length === 0) return [];
+
+    const parentPosition = this.nodePositions.get(parentId);
+    if (!parentPosition) return [];
+
+    const updatedPositions: NodePosition[] = [];
+    const isRootParent = parentPosition.level === 0;
+
+    // For root children, separate left and right sides
+    if (isRootParent) {
+      const leftChildren = children.filter(id => this.nodeSides.get(id) === "left");
+      const rightChildren = children.filter(id => this.nodeSides.get(id) === "right");
+
+      // Position left side children
+      if (leftChildren.length > 0) {
+        const leftPositions = this.positionSiblings(leftChildren, parentPosition, "left", rootX, rootY);
+        updatedPositions.push(...leftPositions);
+      }
+
+      // Position right side children  
+      if (rightChildren.length > 0) {
+        const rightPositions = this.positionSiblings(rightChildren, parentPosition, "right", rootX, rootY);
+        updatedPositions.push(...rightPositions);
+      }
+    } else {
+      // For non-root parents, position all children on same side
+      const positions = this.positionSiblings(children, parentPosition, parentPosition.side, rootX, rootY);
+      updatedPositions.push(...positions);
+    }
+
+    return updatedPositions;
+  }
+
+  // Position a set of sibling nodes with simple vertical stacking
+  private positionSiblings(
+    siblings: string[],
+    parentPos: NodePosition,
+    side: "left" | "right",
+    rootX: number,
+    rootY: number
+  ): NodePosition[] {
+    if (siblings.length === 0) return [];
+
+    const updatedPositions: NodePosition[] = [];
+    
+    if (this.fastPathMode) {
+      return this.positionSiblingsFastPath(siblings, parentPos, side);
+    } else {
+      return this.positionSiblingsNormal(siblings, parentPos, side);
+    }
+  }
+
+  // Fast path positioning - simple grid layout for performance
+  private positionSiblingsFastPath(
+    siblings: string[],
+    parentPos: NodePosition,
+    side: "left" | "right"
+  ): NodePosition[] {
+    const updatedPositions: NodePosition[] = [];
+    const horizontal = LAYOUT_CONFIG.width + Math.min(LAYOUT_CONFIG.horizontalSpacing, 40); // Reduce spacing for compactness
+    const vertical = Math.min(LAYOUT_CONFIG.verticalSpacing, 20); // Reduce vertical spacing
+
+    // Calculate starting position - more compact layout
+    const baseX = parentPos.x + (side === "right" ? horizontal : -horizontal);
+    const totalHeight = siblings.length * (LAYOUT_CONFIG.height + vertical) - vertical;
+    let currentY = parentPos.y - totalHeight / 2;
+
+    // Position each sibling with minimal calculations
+    siblings.forEach((childId, index) => {
+      const position = this.nodePositions.get(childId);
+      if (position) {
+        position.x = baseX;
+        position.y = currentY + LAYOUT_CONFIG.height / 2;
+        position.level = parentPos.level + 1;
+        position.stackIndex = index;
+        position.side = side;
+        
+        updatedPositions.push(position);
+        currentY += LAYOUT_CONFIG.height + vertical;
+      }
+    });
+
+    return updatedPositions;
+  }
+
+  // Normal positioning with proper spacing
+  private positionSiblingsNormal(
+    siblings: string[],
+    parentPos: NodePosition,
+    side: "left" | "right"
+  ): NodePosition[] {
+    const updatedPositions: NodePosition[] = [];
+    const horizontal = LAYOUT_CONFIG.width + LAYOUT_CONFIG.horizontalSpacing;
+    const vertical = LAYOUT_CONFIG.verticalSpacing;
+
+    // Calculate starting position
+    const baseX = parentPos.x + (side === "right" ? horizontal : -horizontal);
+    const totalHeight = siblings.length * (LAYOUT_CONFIG.height + vertical) - vertical;
+    let currentY = parentPos.y - totalHeight / 2;
+
+    // Position each sibling
+    siblings.forEach((childId, index) => {
+      const position = this.nodePositions.get(childId);
+      if (position) {
+        position.x = baseX;
+        position.y = currentY + LAYOUT_CONFIG.height / 2;
+        position.level = parentPos.level + 1;
+        position.stackIndex = index;
+        position.side = side;
+        
+        updatedPositions.push(position);
+        currentY += LAYOUT_CONFIG.height + vertical;
+      }
+    });
+
+    return updatedPositions;
   }
 
   // Recalculate entire layout using outline-based system
@@ -184,5 +321,23 @@ export class HierarchicalPositioner {
     this.nodeSides.delete(nodeId);
     this.childrenMap.delete(nodeId);
     this.nodeData.delete(nodeId);
+    
+    // Update fast path mode after removal
+    this.updateFastPathMode();
+  }
+
+  // Expose fast path status for debugging/monitoring
+  isFastPathMode(): boolean {
+    return this.fastPathMode;
+  }
+
+  // Get total node count
+  getTotalNodeCount(): number {
+    return this.nodePositions.size;
+  }
+
+  // Force enable/disable fast path mode (for testing)
+  setFastPathMode(enabled: boolean): void {
+    this.fastPathMode = enabled;
   }
 }

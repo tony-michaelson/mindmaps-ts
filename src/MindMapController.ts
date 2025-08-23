@@ -35,6 +35,10 @@ export class MindmapController {
   private objectPool: ObjectPoolManager;
   private lastViewport: ViewportInfo | null = null;
   
+  // Connection optimization
+  private connectionUpdateQueue = new Set<string>();
+  private connectionUpdateScheduled = false;
+  
   // Incremental update state tracking
   private needsFullRefresh: boolean = true;
   private currentNodeStates: Map<string, NodeState> = new Map();
@@ -456,6 +460,9 @@ export class MindmapController {
 
   private animateToPosition(node: Node, targetPosition: NodePosition): void {
     const group = node.getGroup();
+    let lastUpdateTime = 0;
+    const UPDATE_INTERVAL = 16; // ~60fps, only update connections every 16ms
+    
     const tween = new Konva.Tween({
       node: group,
       duration: 0.4,
@@ -463,19 +470,237 @@ export class MindmapController {
       y: targetPosition.y - LAYOUT_CONFIG.height / 2,
       easing: Konva.Easings.EaseInOut,
       onUpdate: () => {
-        // Efficiently update connection paths during animation (no recreation)
-        this.updateConnectionPathsOptimized();
+        // Throttle connection updates to improve performance
+        const now = Date.now();
+        if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+          // Only schedule update, don't execute immediately
+          this.scheduleConnectionUpdate();
+          lastUpdateTime = now;
+        }
       },
       onFinish: () => {
         // Restore full opacity after animation completes
         group.opacity(1.0);
         
-        // Ensure connections are properly updated at the end
-        this.updateAllConnections();
+        // Final connection update
+        this.updateConnectionsForAnimatedNodes();
       }
     });
 
     tween.play();
+  }
+
+  private animationUpdateScheduled = false;
+  private animatingNodes = new Set<string>();
+
+  private scheduleConnectionUpdate(): void {
+    if (this.animationUpdateScheduled) return;
+    
+    this.animationUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      this.updateConnectionPathsThrottled();
+      this.animationUpdateScheduled = false;
+    });
+  }
+
+  // Queue a connection for update instead of updating immediately
+  private queueConnectionUpdate(connectionId: string): void {
+    this.connectionUpdateQueue.add(connectionId);
+    this.scheduleQueuedConnectionUpdates();
+  }
+
+  private scheduleQueuedConnectionUpdates(): void {
+    if (this.connectionUpdateScheduled) return;
+    
+    this.connectionUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      this.processConnectionUpdateQueue();
+      this.connectionUpdateScheduled = false;
+    });
+  }
+
+  // Process all queued connection updates in batch
+  private processConnectionUpdateQueue(): void {
+    if (this.connectionUpdateQueue.size === 0) return;
+
+    const viewport = this.viewportCuller.getViewportInfo();
+    let needsRedraw = false;
+
+    this.connectionUpdateQueue.forEach(connectionId => {
+      if (this.updateQueuedConnection(connectionId, viewport)) {
+        needsRedraw = true;
+      }
+    });
+
+    this.connectionUpdateQueue.clear();
+
+    if (needsRedraw) {
+      this.layer.draw();
+    }
+  }
+
+  // Update a single queued connection
+  private updateQueuedConnection(connectionId: string, viewport: ViewportInfo): boolean {
+    const cachedConnection = this.connectionCache.get(connectionId);
+    if (!cachedConnection) return false;
+
+    const [parentId, childId] = connectionId.split('-');
+    const parentNode = this.konvaNodes.get(parentId);
+    const childNode = this.konvaNodes.get(childId);
+    
+    if (!parentNode || !childNode) return false;
+
+    const parentGroup = parentNode.getGroup();
+    const childGroup = childNode.getGroup();
+    const parentRect = parentGroup.children![0] as Konva.Rect;
+    const childRect = childGroup.children![0] as Konva.Rect;
+    
+    const parentPos = {
+      x: parentGroup.x() + parentRect.width() / 2,
+      y: parentGroup.y() + parentRect.height() / 2
+    };
+    const childPos = {
+      x: childGroup.x() + childRect.width() / 2,
+      y: childGroup.y() + childRect.height() / 2
+    };
+
+    // Skip update if positions haven't changed significantly
+    const lastUpdate = cachedConnection.lastUpdate;
+    if (lastUpdate && 
+        Math.abs(parentPos.x - lastUpdate.parentPos.x) < 1 &&
+        Math.abs(parentPos.y - lastUpdate.parentPos.y) < 1 &&
+        Math.abs(childPos.x - lastUpdate.childPos.x) < 1 &&
+        Math.abs(childPos.y - lastUpdate.childPos.y) < 1) {
+      return false;
+    }
+
+    // Check visibility
+    if (!this.viewportCuller.isConnectionVisible(
+      parentPos.x, parentPos.y, parentRect.width(), parentRect.height(),
+      childPos.x, childPos.y, childRect.width(), childRect.height(),
+      viewport
+    )) {
+      cachedConnection.shape.visible(false);
+      return true;
+    }
+
+    // Update connection path
+    cachedConnection.shape.visible(true);
+    this.updateConnectionPath(cachedConnection.shape, parentPos, childPos);
+    cachedConnection.lastUpdate = { parentPos, childPos };
+    return true;
+  }
+
+  // Throttled version that only updates connections for animating nodes
+  private updateConnectionPathsThrottled(): void {
+    const viewport = this.viewportCuller.getViewportInfo();
+    
+    // Only update connections that involve animating nodes
+    this.connectionCache.forEach((cachedConnection, connectionId) => {
+      const [parentId, childId] = connectionId.split('-');
+      
+      // Skip if neither node is animating
+      if (!this.animatingNodes.has(parentId) && !this.animatingNodes.has(childId)) {
+        return;
+      }
+
+      const parentNode = this.konvaNodes.get(parentId);
+      const childNode = this.konvaNodes.get(childId);
+      
+      if (!parentNode || !childNode) return;
+      
+      // Get current visual positions
+      const parentGroup = parentNode.getGroup();
+      const childGroup = childNode.getGroup();
+      const parentRect = parentGroup.children![0] as Konva.Rect;
+      const childRect = childGroup.children![0] as Konva.Rect;
+      
+      const parentPos = {
+        x: parentGroup.x() + parentRect.width() / 2,
+        y: parentGroup.y() + parentRect.height() / 2
+      };
+      const childPos = {
+        x: childGroup.x() + childRect.width() / 2,
+        y: childGroup.y() + childRect.height() / 2
+      };
+
+      // Skip update if positions haven't changed significantly
+      const lastUpdate = cachedConnection.lastUpdate;
+      if (lastUpdate && 
+          Math.abs(parentPos.x - lastUpdate.parentPos.x) < 1 &&
+          Math.abs(parentPos.y - lastUpdate.parentPos.y) < 1 &&
+          Math.abs(childPos.x - lastUpdate.childPos.x) < 1 &&
+          Math.abs(childPos.y - lastUpdate.childPos.y) < 1) {
+        return;
+      }
+
+      // Check visibility
+      if (!this.viewportCuller.isConnectionVisible(
+        parentPos.x, parentPos.y, parentRect.width(), parentRect.height(),
+        childPos.x, childPos.y, childRect.width(), childRect.height(),
+        viewport
+      )) {
+        cachedConnection.shape.visible(false);
+        return;
+      }
+
+      // Update connection path efficiently
+      cachedConnection.shape.visible(true);
+      this.updateConnectionPath(cachedConnection.shape, parentPos, childPos);
+      cachedConnection.lastUpdate = { parentPos, childPos };
+    });
+  }
+
+  // Update connections only for nodes that finished animating
+  private updateConnectionsForAnimatedNodes(): void {
+    this.animatingNodes.forEach(nodeId => {
+      const children = this.positioner.getChildren(nodeId);
+      children.forEach(childId => {
+        const connectionId = `${nodeId}-${childId}`;
+        this.updateSingleConnection(connectionId);
+      });
+
+      // Also update parent connections
+      for (const [parentId, childrenArray] of this.positioner["childrenMap"]) {
+        if (childrenArray.includes(nodeId)) {
+          const connectionId = `${parentId}-${nodeId}`;
+          this.updateSingleConnection(connectionId);
+          break;
+        }
+      }
+    });
+    
+    // Clear animating nodes set
+    this.animatingNodes.clear();
+    this.layer.draw();
+  }
+
+  private updateSingleConnection(connectionId: string): void {
+    const cachedConnection = this.connectionCache.get(connectionId);
+    if (!cachedConnection) return;
+
+    const [parentId, childId] = connectionId.split('-');
+    const parentNode = this.konvaNodes.get(parentId);
+    const childNode = this.konvaNodes.get(childId);
+    
+    if (!parentNode || !childNode) return;
+
+    const parentGroup = parentNode.getGroup();
+    const childGroup = childNode.getGroup();
+    const parentRect = parentGroup.children![0] as Konva.Rect;
+    const childRect = childGroup.children![0] as Konva.Rect;
+    
+    const parentPos = {
+      x: parentGroup.x() + parentRect.width() / 2,
+      y: parentGroup.y() + parentRect.height() / 2
+    };
+    const childPos = {
+      x: childGroup.x() + childRect.width() / 2,
+      y: childGroup.y() + childRect.height() / 2
+    };
+
+    this.updateConnectionPath(cachedConnection.shape, parentPos, childPos);
+    cachedConnection.lastUpdate = { parentPos, childPos };
   }
 
   private setPositionWithoutAnimation(node: Node, targetPosition: NodePosition): void {
@@ -917,13 +1142,19 @@ export class MindmapController {
     
     // Execute updates in optimal order
     if (needsLayoutRecalculation) {
-      // Clear layout cache when structure changes
-      PerformanceUtils.clearLayoutCache();
+      // Only clear layout cache when structure changes significantly
+      if (operations.some(op => op.type === 'ADD_NODE' || op.type === 'REMOVE_NODE')) {
+        PerformanceUtils.clearLayoutCache();
+      }
     }
     
     if (needsConnectionUpdate) {
-      // Clear connection cache when positions change
-      PerformanceUtils.clearConnectionCache();
+      // Don't clear entire connection cache - let individual updates handle it
+      // Only clear cache if we have structural changes
+      if (operations.some(op => op.type === 'ADD_NODE' || op.type === 'REMOVE_NODE')) {
+        // Clear only affected connections, not all
+        this.clearAffectedConnectionCache(operations);
+      }
     }
     
     // Single draw call for the entire batch
@@ -940,7 +1171,17 @@ export class MindmapController {
       draw: this.drawManager.getDrawStats(),
       pool: this.objectPool.getStats(),
       nodes: this.konvaNodes.size,
-      connections: this.connections.size
+      connections: this.connections.size,
+      layout: {
+        fastPathMode: this.positioner.isFastPathMode(),
+        totalNodes: this.positioner.getTotalNodeCount(),
+        fastPathThreshold: 100
+      },
+      connectionUpdates: {
+        queueSize: this.connectionUpdateQueue.size,
+        updateScheduled: this.connectionUpdateScheduled,
+        animatingNodes: this.animatingNodes.size
+      }
     };
   }
   
@@ -958,6 +1199,30 @@ export class MindmapController {
   public clearPerformanceCaches(): void {
     PerformanceUtils.clearAllCaches();
     this.incrementalUpdater.reset();
+  }
+
+  // Clear only affected connection cache entries for better performance
+  private clearAffectedConnectionCache(operations: BatchOperation[]): void {
+    for (const op of operations) {
+      if (op.type === 'ADD_NODE' && op.data?.parentId) {
+        // Clear cache for parent's connections
+        const parentId = op.data.parentId;
+        const children = this.positioner.getChildren(parentId);
+        children.forEach(childId => {
+          const connectionId = `${parentId}-${childId}`;
+          // Don't clear from cache, just mark as needing update
+          this.queueConnectionUpdate(connectionId);
+        });
+      } else if (op.type === 'REMOVE_NODE' && op.nodeId) {
+        // Clear cache entries involving the removed node
+        const nodeId = op.nodeId;
+        this.connectionCache.forEach((_, connectionId) => {
+          if (connectionId.includes(nodeId)) {
+            this.connectionCache.delete(connectionId);
+          }
+        });
+      }
+    }
   }
 
   // Method to update node visibility based on viewport changes
@@ -1204,6 +1469,8 @@ export class MindmapController {
             LAYOUT_CONFIG.width, LAYOUT_CONFIG.height, 
             viewport
           )) {
+            // Track this node as animating
+            this.animatingNodes.add(nodeId);
             this.animateToPosition(konvaNode, position);
           } else {
             // For off-screen nodes, just set position without animation
@@ -1211,16 +1478,18 @@ export class MindmapController {
           }
         }
         
-        // Mark connections involving this node as dirty
+        // Queue connections involving this node for updates
         const children = this.positioner.getChildren(nodeId);
         children.forEach(childId => {
           this.incrementalUpdater.markConnectionDirty(`${nodeId}-${childId}`);
+          this.queueConnectionUpdate(`${nodeId}-${childId}`);
         });
         
-        // Find parent and mark parent->node connection as dirty
+        // Find parent and queue parent->node connection for update
         for (const [parentId, childrenArray] of this.positioner["childrenMap"]) {
           if (childrenArray.includes(nodeId)) {
             this.incrementalUpdater.markConnectionDirty(`${parentId}-${nodeId}`);
+            this.queueConnectionUpdate(`${parentId}-${nodeId}`);
             break;
           }
         }
