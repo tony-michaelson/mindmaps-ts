@@ -23,6 +23,8 @@ export class MindmapController {
   private nodeCounter = 0;
   private selectedNodeId: string | null = null;
   private pendingRedraw = false;
+  private dragUpdateThrottle = 0;
+  private lastDropTargetId: string | null = null;
   public onNodeSelected?: (nodeId: string | null) => void;
 
   constructor(layer: Konva.Layer, rootX: number, rootY: number) {
@@ -179,17 +181,31 @@ export class MindmapController {
     tween.play();
   }
 
-  // Simple connection update that works
+  private animateToPositionWithCallback(node: Node, targetPosition: NodePosition, onComplete: () => void): void {
+    const group = node.getGroup();
+    const tween = new Konva.Tween({
+      node: group,
+      duration: 0.4,
+      x: targetPosition.x - LAYOUT_CONFIG.width / 2,
+      y: targetPosition.y - LAYOUT_CONFIG.height / 2,
+      easing: Konva.Easings.EaseInOut,
+      onUpdate: () => {
+        // Keep connections visible during animation by updating them
+        this.scheduleSmartConnectionUpdate();
+      },
+      onFinish: () => {
+        onComplete();
+      }
+    });
+
+    tween.play();
+  }
+
+  // Simple connection update that works - now uses visual positions
   private updateConnectionsSimple(parentId: string): void {
     const children = this.positioner.getChildren(parentId);
-    const parentPos = this.positioner.getNodePosition(parentId);
-
-    if (!parentPos) return;
 
     children.forEach((childId) => {
-      const childPos = this.positioner.getNodePosition(childId);
-      if (!childPos) return;
-
       const connectionId = `${parentId}-${childId}`;
 
       // Remove old connection
@@ -198,49 +214,8 @@ export class MindmapController {
         oldConnection.destroy();
       }
 
-      // Get actual node dimensions
-      const parentNode = this.konvaNodes.get(parentId);
-      const childNode = this.konvaNodes.get(childId);
-      if (!parentNode || !childNode) return;
-      
-      const parentGroup = parentNode.getGroup();
-      const childGroup = childNode.getGroup();
-      const parentRect = parentGroup.findOne('Rect') as Konva.Rect;
-      const childRect = childGroup.findOne('Rect') as Konva.Rect;
-      const parentWidth = parentRect.width();
-      const parentHeight = parentRect.height();
-      const childWidth = childRect.width();
-      const childHeight = childRect.height();
-
-      // Calculate center positions for both nodes using actual dimensions
-      const parentCenterX = parentPos.x + parentWidth / 2;
-      const parentCenterY = parentPos.y + parentHeight / 2;
-      const childCenterX = childPos.x + childWidth / 2;
-      const childCenterY = childPos.y + childHeight / 2;
-
-      // Create simple curved connection
-      const newConnection = new Konva.Shape({
-        sceneFunc: (context, shape) => {
-          context.beginPath();
-          context.moveTo(parentCenterX, parentCenterY);
-          
-          // Calculate control point for smooth curve
-          const controlX = parentCenterX;
-          const controlY = childCenterY - (parentCenterY - childCenterY) * 0.5;
-          
-          // Draw quadratic Bézier curve
-          context.quadraticCurveTo(controlX, controlY, childCenterX, childCenterY);
-          
-          context.fillStrokeShape(shape);
-        },
-        stroke: "#838383ff",
-        strokeWidth: 1,
-        listening: false,
-      });
-
-      this.connections.set(connectionId, newConnection);
-      this.layer.add(newConnection);
-      newConnection.moveToBottom();
+      // Create new connection using current visual positions
+      this.createConnectionFromVisualPositions(parentId, childId);
     });
 
     this.layer.draw();
@@ -478,14 +453,8 @@ export class MindmapController {
     });
     
     group.on("dragmove", () => {
-      // Efficiently update connections while dragging
-      this.scheduleSmartConnectionUpdate();
-      
-      // Update drop target highlighting using center of dragged node
-      const rect = group.findOne('Rect') as Konva.Rect;
-      const centerX = group.x() + (rect ? rect.width() / 2 : 50);
-      const centerY = group.y() + (rect ? rect.height() / 2 : 25);
-      this.updateDropTargetHighlighting(nodeId, centerX, centerY);
+      // Throttle expensive operations during drag
+      this.throttledDragUpdate(nodeId, group);
     });
     
     group.on("dragend", () => {
@@ -502,7 +471,13 @@ export class MindmapController {
       const rect = group.findOne('Rect') as Konva.Rect;
       const centerX = group.x() + (rect ? rect.width() / 2 : 50);
       const centerY = group.y() + (rect ? rect.height() / 2 : 25);
+      
       this.handleNodeDrop(nodeId, centerX, centerY);
+      
+      // Always ensure the dragged node's connection is properly restored after drag
+      setTimeout(() => {
+        this.updateSingleNodeConnection(nodeId);
+      }, 100);
     });
   }
 
@@ -767,10 +742,6 @@ export class MindmapController {
     const newParentSide = this.positioner.getNodeSide(newParentId);
     this.updateNodeAndDescendantsSides(nodeId, newParentSide || "right");
 
-    // Clear all existing connections before recalculation to prevent duplicates
-    this.connections.forEach(connection => connection.destroy());
-    this.connections.clear();
-
     // Trigger a full layout recalculation from the root
     // This will properly position the reparented node and all its descendants
     const updatedPositions = this.positioner.repositionSiblings(
@@ -779,19 +750,38 @@ export class MindmapController {
       this.rootY
     );
 
+    // Track animation completion to update connections after all animations finish
+    let animationsRemaining = updatedPositions.length;
+    
     // Animate all nodes to their new positions
     updatedPositions.forEach((position) => {
       const positionNodeId = this.findNodeIdByPosition(position);
       if (positionNodeId) {
         const konvaNode = this.konvaNodes.get(positionNodeId);
         if (konvaNode) {
-          this.animateToPosition(konvaNode, position);
+          this.animateToPositionWithCallback(konvaNode, position, () => {
+            animationsRemaining--;
+            if (animationsRemaining === 0) {
+              // All animations complete - now clear and recreate all connections
+              this.connections.forEach(connection => connection.destroy());
+              this.connections.clear();
+              this.updateAllConnections();
+            }
+          });
+        } else {
+          animationsRemaining--;
         }
+      } else {
+        animationsRemaining--;
       }
     });
 
-    // Recreate all connections after the layout change
-    this.updateAllConnections();
+    // If no animations were started, clear and recreate connections immediately
+    if (animationsRemaining === 0) {
+      this.connections.forEach(connection => connection.destroy());
+      this.connections.clear();
+      this.updateAllConnections();
+    }
   }
 
   private updateNodeAndDescendantsSides(nodeId: string, side: "left" | "right"): void {
@@ -813,17 +803,62 @@ export class MindmapController {
   }
 
   private updateAllConnections(): void {
-    // Clear all existing connections
-    this.connections.forEach(connection => connection.destroy());
-    this.connections.clear();
-    
-    // Recreate all connections
+    // Recreate all connections using current visual positions
+    // (connections should already be cleared by caller)
     this.konvaNodes.forEach((node, nodeId) => {
       const children = this.positioner.getChildren(nodeId);
-      if (children.length > 0) {
-        this.updateConnectionsSimple(nodeId);
-      }
+      children.forEach(childId => {
+        this.createConnectionFromVisualPositions(nodeId, childId);
+      });
     });
+    
+    this.layer.draw();
+  }
+
+  private createConnectionFromVisualPositions(parentId: string, childId: string): void {
+    const parentNode = this.konvaNodes.get(parentId);
+    const childNode = this.konvaNodes.get(childId);
+    
+    if (!parentNode || !childNode) return;
+    
+    const parentGroup = parentNode.getGroup();
+    const childGroup = childNode.getGroup();
+    const parentRect = parentGroup.findOne('Rect') as Konva.Rect;
+    const childRect = childGroup.findOne('Rect') as Konva.Rect;
+    
+    if (!parentRect || !childRect) return;
+    
+    // Use current visual positions
+    const parentCenterX = parentGroup.x() + parentRect.width() / 2;
+    const parentCenterY = parentGroup.y() + parentRect.height() / 2;
+    const childCenterX = childGroup.x() + childRect.width() / 2;
+    const childCenterY = childGroup.y() + childRect.height() / 2;
+    
+    const connectionId = `${parentId}-${childId}`;
+    
+    // Create connection using visual positions
+    const connection = new Konva.Shape({
+      sceneFunc: (context, shape) => {
+        context.beginPath();
+        context.moveTo(parentCenterX, parentCenterY);
+        
+        // Calculate control point for smooth curve
+        const controlX = parentCenterX;
+        const controlY = childCenterY - (parentCenterY - childCenterY) * 0.5;
+        
+        // Draw quadratic Bézier curve
+        context.quadraticCurveTo(controlX, controlY, childCenterX, childCenterY);
+        
+        context.fillStrokeShape(shape);
+      },
+      stroke: "#838383ff",
+      strokeWidth: 1,
+      listening: false,
+    });
+    
+    this.connections.set(connectionId, connection);
+    this.layer.add(connection);
+    connection.moveToBottom();
   }
 
   private repositionDescendants(parentId: string): void {
@@ -852,22 +887,77 @@ export class MindmapController {
     this.updateConnectionsSimple(parentId);
   }
 
-  private updateDropTargetHighlighting(draggedNodeId: string, dragX: number, dragY: number): void {
-    // Clear all previous highlighting first
-    this.konvaNodes.forEach(node => node.setDropTarget(false));
+
+  private throttledDragUpdate(nodeId: string, group: Konva.Group): void {
+    // Only update connection of the dragged node, not all connections
+    this.updateSingleNodeConnection(nodeId);
     
-    // Find potential drop targets
+    // Throttle drop target highlighting to every 100ms
+    const now = Date.now();
+    if (now - this.dragUpdateThrottle > 100) {
+      this.dragUpdateThrottle = now;
+      
+      // Get center of dragged node
+      const rect = group.findOne('Rect') as Konva.Rect;
+      const centerX = group.x() + (rect ? rect.width() / 2 : 50);
+      const centerY = group.y() + (rect ? rect.height() / 2 : 25);
+      
+      // Only update highlighting if the target has changed
+      this.updateDropTargetHighlightingOptimized(nodeId, centerX, centerY);
+    }
+  }
+
+  private updateSingleNodeConnection(nodeId: string): void {
+    // Only update connections where this node is involved during drag
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    if (!nodePosition || !nodePosition.parentId) return;
+    
+    const connectionId = `${nodePosition.parentId}-${nodeId}`;
+    const oldConnection = this.connections.get(connectionId);
+    
+    if (oldConnection) {
+      // Remove old connection and create new one with current visual positions
+      oldConnection.destroy();
+      this.createConnectionFromVisualPositions(nodePosition.parentId, nodeId);
+      this.layer.draw();
+    }
+  }
+
+  private updateDropTargetHighlightingOptimized(draggedNodeId: string, dragX: number, dragY: number): void {
+    // Find potential drop target
     const dropTargetId = this.findNodeAtPosition(dragX, dragY, draggedNodeId);
-    if (dropTargetId && this.canReparent(draggedNodeId, dropTargetId)) {
-      const dropTargetNode = this.konvaNodes.get(dropTargetId);
-      if (dropTargetNode) {
-        dropTargetNode.setDropTarget(true);
+    const validTarget = dropTargetId && this.canReparent(draggedNodeId, dropTargetId) ? dropTargetId : null;
+    
+    // Only update if target changed
+    if (this.lastDropTargetId !== validTarget) {
+      // Clear previous target
+      if (this.lastDropTargetId) {
+        const prevTargetNode = this.konvaNodes.get(this.lastDropTargetId);
+        if (prevTargetNode) {
+          prevTargetNode.setDropTarget(false);
+        }
       }
+      
+      // Set new target
+      if (validTarget) {
+        const targetNode = this.konvaNodes.get(validTarget);
+        if (targetNode) {
+          targetNode.setDropTarget(true);
+        }
+      }
+      
+      this.lastDropTargetId = validTarget;
     }
   }
 
   private clearDropTargetHighlighting(): void {
-    this.konvaNodes.forEach(node => node.setDropTarget(false));
+    if (this.lastDropTargetId) {
+      const targetNode = this.konvaNodes.get(this.lastDropTargetId);
+      if (targetNode) {
+        targetNode.setDropTarget(false);
+      }
+      this.lastDropTargetId = null;
+    }
   }
 
   private removeNodeRecursive(nodeId: string): void {
