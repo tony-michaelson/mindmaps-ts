@@ -251,18 +251,22 @@ export class TreeLayoutCalculator {
 
       const leftLayout = this.calculateTree(leftTree, margin);
 
-      // For left side, position relative to root's left edge and mirror X
-      const leftResults = this.calculateAbsolutePositions(
+      // For left side, calculate positions then mirror to align right edges
+      const tempLeftResults = this.calculateAbsolutePositions(
         leftLayout,
-        0, // Start from origin for calculation
+        0, // Calculate from origin first
         rootY - LAYOUT_CONFIG.height / 2
-      )
-        .filter((r) => r.nodeId !== "left-container")
-        .map((result) => ({
-          ...result,
-          x: rootX - rootNode.width / 2 - result.x - result.width, // Mirror and offset from root's left edge
-          y: result.y, // Y should align with root for first level
-        }));
+      ).filter((r) => r.nodeId !== "left-container");
+      
+      // Find the rightmost position of any left-side node (this will be our alignment axis)
+      const maxRightEdge = Math.max(...tempLeftResults.map(r => r.x + r.width));
+      
+      // Position all left nodes so their right edges align at the calculated distance from root
+      const leftResults = tempLeftResults.map((result) => ({
+        ...result,
+        x: rootX - rootNode.width / 2 - (maxRightEdge - result.x), // Align right edges consistently
+        y: result.y,
+      }));
 
       results.push(...leftResults);
     }
