@@ -87,7 +87,6 @@ export class Node {
     this.group.add(rect);
     this.group.add(label);
     this.layer.add(this.group);
-    this.layer.draw();
   }
 
   // Helper function to wrap text at 25 character limit
@@ -204,7 +203,6 @@ export class Node {
   public move(deltaX: number, deltaY: number): void {
     this.group.x(this.group.x() + deltaX);
     this.group.y(this.group.y() + deltaY);
-    this.layer.draw();
   }
 
   public remove(): void {

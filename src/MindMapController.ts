@@ -167,8 +167,8 @@ export class MindmapController {
       y: targetPosition.y - LAYOUT_CONFIG.height / 2,
       easing: Konva.Easings.EaseInOut,
       onUpdate: () => {
-        // Update connections during animation
-        this.updateAllConnections();
+        // Update connections during animation (without drawing)
+        this.updateAllConnectionsWithoutDraw();
       },
       onFinish: () => {
         // Ensure connections are properly updated at the end
@@ -181,13 +181,13 @@ export class MindmapController {
 
   private updateConnections(parentId: string): void {
     const children = this.positioner.getChildren(parentId);
-    const parentPos = this.positioner.getNodePosition(parentId);
+    const parentNode = this.konvaNodes.get(parentId);
 
-    if (!parentPos) return;
+    if (!parentNode) return;
 
     children.forEach((childId) => {
-      const childPos = this.positioner.getNodePosition(childId);
-      if (!childPos) return;
+      const childNode = this.konvaNodes.get(childId);
+      if (!childNode) return;
 
       const connectionId = `${parentId}-${childId}`;
 
@@ -197,7 +197,30 @@ export class MindmapController {
         oldConnection.destroy();
       }
 
-      // Create new connection
+      // Get current visual positions from Konva groups (not target positions)
+      const parentGroup = parentNode.getGroup();
+      const childGroup = childNode.getGroup();
+      
+      const parentRect = parentGroup.children![0] as Konva.Rect;
+      const childRect = childGroup.children![0] as Konva.Rect;
+      
+      const parentPos = {
+        x: parentGroup.x() + parentRect.width() / 2,
+        y: parentGroup.y() + parentRect.height() / 2,
+        level: 0,
+        stackIndex: 0,
+        side: "right" as const
+      };
+      
+      const childPos = {
+        x: childGroup.x() + childRect.width() / 2,
+        y: childGroup.y() + childRect.height() / 2,
+        level: 0,
+        stackIndex: 0,
+        side: "right" as const
+      };
+
+      // Create new connection with current visual positions
       const newConnection = this.createConnectionLine(
         parentPos,
         childPos,
@@ -213,6 +236,11 @@ export class MindmapController {
   }
 
   private updateAllConnections(): void {
+    this.updateAllConnectionsWithoutDraw();
+    this.layer.draw();
+  }
+
+  private updateAllConnectionsWithoutDraw(): void {
     // Update all connections by redrawing them based on current visual node positions
     this.connections.forEach((connection, connectionId) => {
       const [parentId, childId] = connectionId.split('-');
@@ -255,7 +283,6 @@ export class MindmapController {
         newConnection.moveToBottom();
       }
     });
-    this.layer.draw();
   }
 
   private createConnectionLine(
