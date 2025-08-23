@@ -1,6 +1,8 @@
 import Konva from "konva";
 import { Node } from "./Node";
 import { HierarchicalPositioner } from "./HierarchicalPositioner";
+import { ConnectionCache } from "./ConnectionCache";
+import { BatchProcessor } from "./BatchProcessor";
 import {
   NodePosition,
   NodeType,
@@ -12,12 +14,15 @@ export class MindmapController {
   private positioner = new HierarchicalPositioner();
   private konvaNodes: Map<string, Node> = new Map();
   private connections: Map<string, Konva.Shape> = new Map();
+  private connectionCache = new ConnectionCache();
+  private batchProcessor = new BatchProcessor();
   private layer: Konva.Layer;
   private rootId: string | null = null;
   private rootX: number;
   private rootY: number;
   private nodeCounter = 0;
   private selectedNodeId: string | null = null;
+  private pendingRedraw = false;
   public onNodeSelected?: (nodeId: string | null) => void;
 
   constructor(layer: Konva.Layer, rootX: number, rootY: number) {
@@ -47,21 +52,32 @@ export class MindmapController {
       throw new Error("Root node must be created first");
     }
 
-    const nodeId = this.generateNodeId();
-    const position = this.positioner.calculateNodePosition(
-      nodeId,
-      this.rootId,
-      side,
-      this.rootX,
-      this.rootY
-    );
+    return this.batchProcessor.batch(() => {
+      const nodeId = this.generateNodeId();
+      const position = this.positioner.calculateNodePosition(
+        nodeId,
+        this.rootId!,
+        side,
+        this.rootX,
+        this.rootY
+      );
 
-    this.createAndPositionNode(nodeId, position, text, type);
-    this.updateChildrenMap(this.rootId, nodeId);
-    this.repositionSiblings(this.rootId);
-    this.updateConnections(this.rootId);
-
-    return nodeId;
+      this.createAndPositionNode(nodeId, position, text, type);
+      this.updateChildrenMap(this.rootId!, nodeId);
+      
+      // Add batch operations
+      this.batchProcessor.addOperation({
+        type: 'nodeAdd',
+        nodeId,
+        data: { parentId: this.rootId }
+      });
+      
+      this.repositionSiblings(this.rootId!);
+      // Use simple direct connection update
+      this.updateConnectionsSimple(this.rootId!);
+      
+      return nodeId;
+    });
   }
 
   addNodeToExisting(parentId: string, text: string, type: NodeType): string {
@@ -70,21 +86,32 @@ export class MindmapController {
       throw new Error("Parent node not found");
     }
 
-    const nodeId = this.generateNodeId();
-    const position = this.positioner.calculateNodePosition(
-      nodeId,
-      parentId,
-      parentSide,
-      this.rootX,
-      this.rootY
-    );
+    return this.batchProcessor.batch(() => {
+      const nodeId = this.generateNodeId();
+      const position = this.positioner.calculateNodePosition(
+        nodeId,
+        parentId,
+        parentSide,
+        this.rootX,
+        this.rootY
+      );
 
-    this.createAndPositionNode(nodeId, position, text, type);
-    this.updateChildrenMap(parentId, nodeId);
-    this.repositionSiblings(parentId);
-    this.updateConnections(parentId);
-
-    return nodeId;
+      this.createAndPositionNode(nodeId, position, text, type);
+      this.updateChildrenMap(parentId, nodeId);
+      
+      // Add batch operations
+      this.batchProcessor.addOperation({
+        type: 'nodeAdd',
+        nodeId,
+        data: { parentId }
+      });
+      
+      this.repositionSiblings(parentId);
+      // Use simple direct connection update
+      this.updateConnectionsSimple(parentId);
+      
+      return nodeId;
+    });
   }
 
   private createAndPositionNode(
@@ -140,19 +167,20 @@ export class MindmapController {
       y: targetPosition.y - LAYOUT_CONFIG.height / 2,
       easing: Konva.Easings.EaseInOut,
       onUpdate: () => {
-        // Update connections during animation
-        this.updateAllConnections();
+        // Schedule efficient connection update during animation
+        this.scheduleSmartConnectionUpdate();
       },
       onFinish: () => {
-        // Ensure connections are properly updated at the end
-        this.updateAllConnections();
+        // Final connection update
+        this.scheduleSmartConnectionUpdate();
       }
     });
 
     tween.play();
   }
 
-  private updateConnections(parentId: string): void {
+  // Simple connection update that works
+  private updateConnectionsSimple(parentId: string): void {
     const children = this.positioner.getChildren(parentId);
     const parentPos = this.positioner.getNodePosition(parentId);
 
@@ -170,13 +198,26 @@ export class MindmapController {
         oldConnection.destroy();
       }
 
-      // Create new connection
-      const newConnection = this.createConnectionLine(
-        parentPos,
-        childPos,
-        parentId,
-        childId
-      );
+      // Create simple curved connection
+      const newConnection = new Konva.Shape({
+        sceneFunc: (context, shape) => {
+          context.beginPath();
+          context.moveTo(parentPos.x, parentPos.y);
+          
+          // Calculate control point for smooth curve
+          const controlX = parentPos.x;
+          const controlY = childPos.y - (parentPos.y - childPos.y) * 0.5;
+          
+          // Draw quadratic Bézier curve
+          context.quadraticCurveTo(controlX, controlY, childPos.x, childPos.y);
+          
+          context.fillStrokeShape(shape);
+        },
+        stroke: "#838383ff",
+        strokeWidth: 1,
+        listening: false,
+      });
+
       this.connections.set(connectionId, newConnection);
       this.layer.add(newConnection);
       newConnection.moveToBottom();
@@ -185,95 +226,188 @@ export class MindmapController {
     this.layer.draw();
   }
 
-  private updateAllConnections(): void {
-    // Update all connections by redrawing them based on current visual node positions
+  // Schedule a connection update (batched and optimized)
+  private scheduleConnectionUpdate(parentId: string): void {
+    console.log(`Scheduling connection update for parent: ${parentId}`);
+    this.batchProcessor.addBatchCallback(() => {
+      console.log(`Executing batch callback for connection update: ${parentId}`);
+      this.updateConnectionsOptimized([parentId]);
+    });
+  }
+
+  // Optimized connection update for specific parents
+  private updateConnectionsOptimized(parentIds: string[]): void {
+    const viewport = this.getViewportBounds();
+    console.log(`Viewport bounds:`, viewport);
+    let hasVisibleChanges = false;
+
+    parentIds.forEach(parentId => {
+      const children = this.positioner.getChildren(parentId);
+      const parentPos = this.positioner.getNodePosition(parentId);
+      if (!parentPos) return;
+
+      children.forEach((childId) => {
+        const childPos = this.positioner.getNodePosition(childId);
+        if (!childPos) return;
+
+        const connectionId = `${parentId}-${childId}`;
+        
+        // TODO: Debug - temporarily disable viewport culling to test connections
+        // Check if connection is visible before processing
+        const isVisible = this.connectionCache.isConnectionVisible(
+          connectionId, parentPos.x, parentPos.y, childPos.x, childPos.y, viewport
+        );
+        console.log(`Connection ${connectionId} visibility:`, isVisible, { parentPos, childPos, viewport });
+        
+        if (!isVisible) {
+          // Remove off-screen connection if it exists
+          const oldConnection = this.connections.get(connectionId);
+          if (oldConnection) {
+            oldConnection.destroy();
+            this.connections.delete(connectionId);
+          }
+          // For debugging, let's still create connections even if "not visible"
+          // return; // Skip off-screen connections
+        }
+
+        // Get cached connection shape
+        const parentNode = this.konvaNodes.get(parentId);
+        const childNode = this.konvaNodes.get(childId);
+        if (!parentNode || !childNode) return;
+
+        console.log(`Creating connection for ${connectionId}:`, { parentPos, childPos });
+        
+        const newConnection = this.connectionCache.getCachedConnection(
+          parentPos.x, parentPos.y, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
+          childPos.x, childPos.y, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height
+        );
+
+        console.log(`Created connection shape:`, newConnection);
+
+        // Remove old connection
+        const oldConnection = this.connections.get(connectionId);
+        if (oldConnection) {
+          oldConnection.destroy();
+        }
+
+        // Add new connection
+        this.connections.set(connectionId, newConnection);
+        this.layer.add(newConnection);
+        newConnection.moveToBottom();
+        hasVisibleChanges = true;
+        
+        console.log(`Added connection ${connectionId} to layer, total connections:`, this.connections.size);
+      });
+    });
+
+    // Only redraw if there were visible changes
+    if (hasVisibleChanges) {
+      this.scheduleDraw();
+    }
+  }
+
+  // Smart connection update - only updates visible connections during animations
+  private scheduleSmartConnectionUpdate(): void {
+    if (this.pendingRedraw) return; // Already scheduled
+    
+    this.pendingRedraw = true;
+    requestAnimationFrame(() => {
+      this.updateVisibleConnections();
+      this.pendingRedraw = false;
+    });
+  }
+
+  // Update only visible connections with current visual positions
+  private updateVisibleConnections(): void {
+    const viewport = this.getViewportBounds();
+    let hasChanges = false;
+
+    // Process only visible connections
     this.connections.forEach((connection, connectionId) => {
       const [parentId, childId] = connectionId.split('-');
       const parentNode = this.konvaNodes.get(parentId);
       const childNode = this.konvaNodes.get(childId);
       
-      if (parentNode && childNode) {
-        // Get current visual positions from Konva groups
-        const parentGroup = parentNode.getGroup();
-        const childGroup = childNode.getGroup();
-        
-        // Get actual rectangle dimensions from within the groups
-        const parentRect = parentGroup.children![0] as Konva.Rect; // First child is the rectangle
-        const childRect = childGroup.children![0] as Konva.Rect;
-        
-        // Convert visual positions back to logical center positions
-        const parentPos = {
-          x: parentGroup.x() + parentRect.width() / 2,
-          y: parentGroup.y() + parentRect.height() / 2,
-          level: 0, // These fields aren't used for connection drawing
-          stackIndex: 0,
-          side: "right" as const
-        };
-        
-        const childPos = {
-          x: childGroup.x() + childRect.width() / 2,
-          y: childGroup.y() + childRect.height() / 2,
-          level: 0,
-          stackIndex: 0,
-          side: "right" as const
-        };
-        
-        // Remove old connection
-        connection.destroy();
-        
-        // Create new connection with current visual positions
-        const newConnection = this.createConnectionLine(parentPos, childPos, parentId, childId);
-        this.connections.set(connectionId, newConnection);
-        this.layer.add(newConnection);
-        newConnection.moveToBottom();
+      if (!parentNode || !childNode) return;
+
+      // Get current visual positions from Konva groups
+      const parentGroup = parentNode.getGroup();
+      const childGroup = childNode.getGroup();
+      
+      const parentCenterX = parentGroup.x() + LAYOUT_CONFIG.width / 2;
+      const parentCenterY = parentGroup.y() + LAYOUT_CONFIG.height / 2;
+      const childCenterX = childGroup.x() + LAYOUT_CONFIG.width / 2;
+      const childCenterY = childGroup.y() + LAYOUT_CONFIG.height / 2;
+
+      // Check if connection is visible
+      if (!this.connectionCache.isConnectionVisible(
+        connectionId, parentCenterX, parentCenterY, childCenterX, childCenterY, viewport
+      )) {
+        return; // Skip off-screen connections
       }
+
+      // Get cached connection with current positions
+      const newConnection = this.connectionCache.getCachedConnection(
+        parentCenterX, parentCenterY, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
+        childCenterX, childCenterY, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height
+      );
+      
+      // Replace connection
+      connection.destroy();
+      this.connections.set(connectionId, newConnection);
+      this.layer.add(newConnection);
+      newConnection.moveToBottom();
+      hasChanges = true;
     });
-    this.layer.draw();
+
+    // Single draw call for all changes
+    if (hasChanges) {
+      this.layer.draw();
+    }
   }
 
+  // Get current viewport bounds for culling calculations
+  private getViewportBounds() {
+    const stage = this.layer.getStage();
+    if (!stage) {
+      return { x: 0, y: 0, width: 1000, height: 1000, margin: 100 };
+    }
+
+    const stageBox = stage.getClientRect();
+    const scale = stage.scaleX(); // Assume uniform scaling
+    const margin = Math.min(stageBox.width, stageBox.height) * 0.1;
+
+    return {
+      x: -stage.x() / scale,
+      y: -stage.y() / scale,
+      width: stageBox.width / scale,
+      height: stageBox.height / scale,
+      margin: margin / scale
+    };
+  }
+
+  // Simplified connection creation (now handled by ConnectionCache)
   private createConnectionLine(
     parentPos: NodePosition,
     childPos: NodePosition,
     parentId: string,
     childId: string
   ): Konva.Shape {
-    const parentNode = this.konvaNodes.get(parentId);
-    const childNode = this.konvaNodes.get(childId);
+    // Use cached connection creation
+    return this.connectionCache.getCachedConnection(
+      parentPos.x, parentPos.y, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
+      childPos.x, childPos.y, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height
+    );
+  }
 
-    if (!parentNode || !childNode) {
-      // Fallback to simple straight line
-      return new Konva.Line({
-        points: [parentPos.x, parentPos.y, childPos.x, childPos.y],
-        stroke: "#838383ff",
-        strokeWidth: 1,
-        listening: false,
-      });
-    }
-
-    // Simple center-to-center connection
-    const fromX = parentPos.x;
-    const fromY = parentPos.y;
-    const toX = childPos.x;
-    const toY = childPos.y;
-
-    // Create curved line using Konva.Shape with custom drawing
-    return new Konva.Shape({
-      sceneFunc: (context, shape) => {
-        context.beginPath();
-        context.moveTo(fromX, fromY);
-        
-        // Calculate control point for smooth curve
-        const controlX = fromX;
-        const controlY = toY - (fromY - toY) * 0.5;
-        
-        // Draw quadratic Bézier curve
-        context.quadraticCurveTo(controlX, controlY, toX, toY);
-        
-        context.fillStrokeShape(shape);
-      },
-      stroke: "#838383ff",
-      strokeWidth: 1,
-      listening: false,
+  // Optimized draw scheduling to prevent multiple redraws
+  private scheduleDraw(): void {
+    if (this.pendingRedraw) return;
+    
+    this.pendingRedraw = true;
+    requestAnimationFrame(() => {
+      this.layer.draw();
+      this.pendingRedraw = false;
     });
   }
 
@@ -292,8 +426,8 @@ export class MindmapController {
 
     // Add drag handlers for repositioning
     group.on("dragmove", () => {
-      // Update connections while dragging
-      this.updateAllConnections();
+      // Efficiently update connections while dragging
+      this.scheduleSmartConnectionUpdate();
     });
     
     group.on("dragend", () => {
@@ -324,8 +458,8 @@ export class MindmapController {
       this.onNodeSelected(nodeId);
     }
 
-    // Single redraw for all changes
-    this.layer.draw();
+    // Schedule optimized redraw
+    this.scheduleDraw();
   }
 
   private formatNodeText(text: string): string {
@@ -359,6 +493,14 @@ export class MindmapController {
     return this.selectedNodeId;
   }
 
+  public getCacheStats() {
+    return this.connectionCache.getCacheStats();
+  }
+
+  public clearCaches(): void {
+    this.connectionCache.clearCache();
+  }
+
   public removeNode(nodeId: string): void {
     const node = this.konvaNodes.get(nodeId);
     if (node) {
@@ -377,8 +519,18 @@ export class MindmapController {
       }
     });
 
-    // Remove from positioner
+    // Remove from positioner and clear caches
     this.positioner.removeNode(nodeId);
-    this.layer.draw();
+    
+    // Add removal operation to batch if in batch mode
+    if (this.batchProcessor.isInBatchMode()) {
+      this.batchProcessor.addOperation({
+        type: 'nodeRemove',
+        nodeId,
+        data: { childrenIds: children.map(id => id) }
+      });
+    }
+    
+    this.scheduleDraw();
   }
 }

@@ -62,6 +62,49 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   return mindMap.addChildToNode(parentId, randomTopic, randomType);
 };
 
+// Cache management function
+(window as any).clearCaches = () => {
+  mindMap.getController().clearCaches();
+  console.log("🧹 Caches cleared!");
+};
+
+// Performance testing function
+(window as any).performanceTest = (nodeCount: number = 100) => {
+  console.log(`🚀 Starting performance test with ${nodeCount} nodes...`);
+  
+  const startTime = performance.now();
+  
+  // Add many nodes quickly to test batching performance
+  for (let i = 0; i < nodeCount; i++) {
+    const side = i % 2 === 0 ? "left" : "right";
+    (window as any).addRandomNode(side);
+  }
+  
+  const endTime = performance.now();
+  const duration = endTime - startTime;
+  
+  console.log(`✅ Performance test completed:`);
+  console.log(`   • Added ${nodeCount} nodes in ${duration.toFixed(2)}ms`);
+  console.log(`   • Average: ${(duration / nodeCount).toFixed(2)}ms per node`);
+  console.log(`   • Total nodes: ${mindMap.getNodeCount()}`);
+  
+  // Test cache stats if available
+  const controller = mindMap.getController();
+  try {
+    const stats = controller.getCacheStats();
+    console.log(`   • Connection cache size: ${stats.connectionCacheSize}`);
+    console.log(`   • Visibility cache size: ${stats.visibilityCacheSize}`);
+  } catch (error) {
+    console.log(`   • Cache stats not available`);
+  }
+  
+  return {
+    duration,
+    avgPerNode: duration / nodeCount,
+    totalNodes: mindMap.getNodeCount()
+  };
+};
+
 // Instructions for users
 console.log(`
 🎯 MindMap Controls:
@@ -75,8 +118,10 @@ console.log(`
 • addChildToNode(nodeId)
 • mindMap.getNodeCount()
 • mindMap.getRootId()
+• performanceTest(100) - performance test with N nodes
+• clearCaches() - clear connection and visibility caches
 
-Example: addRandomNode('left')
+Example: performanceTest(50)
 `);
 
 mindMap.render();

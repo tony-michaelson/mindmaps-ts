@@ -32,6 +32,8 @@
     "vite": "^6.2.2"
   },
   "dependencies": {
-    "konva": "^9.3.19"
+    "@types/lodash": "^4.17.20",
+    "konva": "^9.3.19",
+    "lodash": "^4.17.21"
   }
 }
