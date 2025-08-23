@@ -198,18 +198,38 @@ export class MindmapController {
         oldConnection.destroy();
       }
 
+      // Get actual node dimensions
+      const parentNode = this.konvaNodes.get(parentId);
+      const childNode = this.konvaNodes.get(childId);
+      if (!parentNode || !childNode) return;
+      
+      const parentGroup = parentNode.getGroup();
+      const childGroup = childNode.getGroup();
+      const parentRect = parentGroup.findOne('Rect') as Konva.Rect;
+      const childRect = childGroup.findOne('Rect') as Konva.Rect;
+      const parentWidth = parentRect.width();
+      const parentHeight = parentRect.height();
+      const childWidth = childRect.width();
+      const childHeight = childRect.height();
+
+      // Calculate center positions for both nodes using actual dimensions
+      const parentCenterX = parentPos.x + parentWidth / 2;
+      const parentCenterY = parentPos.y + parentHeight / 2;
+      const childCenterX = childPos.x + childWidth / 2;
+      const childCenterY = childPos.y + childHeight / 2;
+
       // Create simple curved connection
       const newConnection = new Konva.Shape({
         sceneFunc: (context, shape) => {
           context.beginPath();
-          context.moveTo(parentPos.x, parentPos.y);
+          context.moveTo(parentCenterX, parentCenterY);
           
           // Calculate control point for smooth curve
-          const controlX = parentPos.x;
-          const controlY = childPos.y - (parentPos.y - childPos.y) * 0.5;
+          const controlX = parentCenterX;
+          const controlY = childCenterY - (parentCenterY - childCenterY) * 0.5;
           
           // Draw quadratic Bézier curve
-          context.quadraticCurveTo(controlX, controlY, childPos.x, childPos.y);
+          context.quadraticCurveTo(controlX, controlY, childCenterX, childCenterY);
           
           context.fillStrokeShape(shape);
         },
@@ -252,10 +272,30 @@ export class MindmapController {
 
         const connectionId = `${parentId}-${childId}`;
         
+        // Get actual node dimensions
+        const parentNode = this.konvaNodes.get(parentId);
+        const childNode = this.konvaNodes.get(childId);
+        if (!parentNode || !childNode) return;
+
+        const parentGroup = parentNode.getGroup();
+        const childGroup = childNode.getGroup();
+        const parentRect = parentGroup.findOne('Rect') as Konva.Rect;
+        const childRect = childGroup.findOne('Rect') as Konva.Rect;
+        const parentWidth = parentRect.width();
+        const parentHeight = parentRect.height();
+        const childWidth = childRect.width();
+        const childHeight = childRect.height();
+
+        // Calculate center positions for both nodes using actual dimensions
+        const parentCenterX = parentPos.x + parentWidth / 2;
+        const parentCenterY = parentPos.y + parentHeight / 2;
+        const childCenterX = childPos.x + childWidth / 2;
+        const childCenterY = childPos.y + childHeight / 2;
+
         // TODO: Debug - temporarily disable viewport culling to test connections
         // Check if connection is visible before processing
         const isVisible = this.connectionCache.isConnectionVisible(
-          connectionId, parentPos.x, parentPos.y, childPos.x, childPos.y, viewport
+          connectionId, parentCenterX, parentCenterY, childCenterX, childCenterY, viewport
         );
         console.log(`Connection ${connectionId} visibility:`, isVisible, { parentPos, childPos, viewport });
         
@@ -270,16 +310,11 @@ export class MindmapController {
           // return; // Skip off-screen connections
         }
 
-        // Get cached connection shape
-        const parentNode = this.konvaNodes.get(parentId);
-        const childNode = this.konvaNodes.get(childId);
-        if (!parentNode || !childNode) return;
-
         console.log(`Creating connection for ${connectionId}:`, { parentPos, childPos });
         
         const newConnection = this.connectionCache.getCachedConnection(
-          parentPos.x, parentPos.y, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
-          childPos.x, childPos.y, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height
+          parentPos.x, parentPos.y, parentWidth, parentHeight,
+          childPos.x, childPos.y, childWidth, childHeight
         );
 
         console.log(`Created connection shape:`, newConnection);
@@ -334,10 +369,19 @@ export class MindmapController {
       const parentGroup = parentNode.getGroup();
       const childGroup = childNode.getGroup();
       
-      const parentCenterX = parentGroup.x() + LAYOUT_CONFIG.width / 2;
-      const parentCenterY = parentGroup.y() + LAYOUT_CONFIG.height / 2;
-      const childCenterX = childGroup.x() + LAYOUT_CONFIG.width / 2;
-      const childCenterY = childGroup.y() + LAYOUT_CONFIG.height / 2;
+      // Get actual node dimensions from the rectangle elements
+      const parentRect = parentGroup.findOne('Rect') as Konva.Rect;
+      const childRect = childGroup.findOne('Rect') as Konva.Rect;
+      const parentWidth = parentRect.width();
+      const parentHeight = parentRect.height();
+      const childWidth = childRect.width();
+      const childHeight = childRect.height();
+      
+      
+      const parentCenterX = parentGroup.x() + parentWidth / 2;
+      const parentCenterY = parentGroup.y() + parentHeight / 2;
+      const childCenterX = childGroup.x() + childWidth / 2;
+      const childCenterY = childGroup.y() + childHeight / 2;
 
       // Check if connection is visible
       if (!this.connectionCache.isConnectionVisible(
@@ -348,8 +392,8 @@ export class MindmapController {
 
       // Get cached connection with current positions
       const newConnection = this.connectionCache.getCachedConnection(
-        parentCenterX, parentCenterY, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
-        childCenterX, childCenterY, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height
+        parentGroup.x(), parentGroup.y(), parentWidth, parentHeight,
+        childGroup.x(), childGroup.y(), childWidth, childHeight
       );
       
       // Replace connection

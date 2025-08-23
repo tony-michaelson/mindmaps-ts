@@ -51,19 +51,25 @@ export class ConnectionCache {
 
   // Create the actual Konva shape for a connection
   private createConnectionShape(params: ConnectionParams): Konva.Shape {
-    const { parentX, parentY, childX, childY } = params;
+    const { parentX, parentY, childX, childY, parentWidth, parentHeight, childWidth, childHeight } = params;
+
+    // Calculate center positions for both nodes
+    const parentCenterX = parentX + parentWidth / 2;
+    const parentCenterY = parentY + parentHeight / 2;
+    const childCenterX = childX + childWidth / 2;
+    const childCenterY = childY + childHeight / 2;
 
     return new Konva.Shape({
       sceneFunc: (context, shape) => {
         context.beginPath();
-        context.moveTo(parentX, parentY);
+        context.moveTo(parentCenterX, parentCenterY);
         
         // Calculate control point for smooth curve
-        const controlX = parentX;
-        const controlY = childY - (parentY - childY) * 0.5;
+        const controlX = parentCenterX;
+        const controlY = childCenterY - (parentCenterY - childCenterY) * 0.5;
         
         // Draw quadratic Bézier curve
-        context.quadraticCurveTo(controlX, controlY, childX, childY);
+        context.quadraticCurveTo(controlX, controlY, childCenterX, childCenterY);
         
         context.fillStrokeShape(shape);
       },
@@ -105,7 +111,7 @@ export class ConnectionCache {
       return this.visibilityCache.get(cacheKey)!;
     }
 
-    // Calculate connection bounds
+    // Calculate connection bounds (already centered coordinates)
     const minX = Math.min(parentX, childX) - viewport.margin;
     const maxX = Math.max(parentX, childX) + viewport.margin;
     const minY = Math.min(parentY, childY) - viewport.margin;
