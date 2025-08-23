@@ -1,4 +1,5 @@
 import Konva from "konva";
+import { LAYOUT_CONFIG } from "./NodePosition";
 
 export class Node {
   private group: Konva.Group;
@@ -10,6 +11,11 @@ export class Node {
   private isCollapsed: boolean = false;
   private isDragging: boolean = false;
   private isDropTarget: boolean = false;
+  private isEditing: boolean = false;
+  private currentText: string;
+  private textElement: Konva.Text;
+  private rectElement: Konva.Rect;
+  private onTextChange?: (newText: string) => void;
 
   // Default styles from layout.js
   private static readonly defaultStyles = {
@@ -24,8 +30,11 @@ export class Node {
     isRoot?: boolean;
     layer: Konva.Layer;
     customColor?: string;
+    onTextChange?: (newText: string) => void;
   }) {
-    const { x, y, text, isRoot = false, layer, customColor } = params;
+    const { x, y, text, isRoot = false, layer, customColor, onTextChange } = params;
+    this.onTextChange = onTextChange;
+    this.currentText = text;
 
     this.layer = layer;
     this.isRoot = isRoot;
@@ -58,6 +67,8 @@ export class Node {
       fill: this.getTextColor(backgroundColor),
       listening: false,
     });
+    
+    this.textElement = label;
 
     // Measure text dimensions
     const textWidth = label.width();
@@ -82,6 +93,8 @@ export class Node {
       },
       shadowOpacity: this.isSelected ? 1.0 : 0.4,
     });
+    
+    this.rectElement = rect;
 
     label.x(this.padding);
     label.y(this.padding);
@@ -89,6 +102,7 @@ export class Node {
     this.group.add(rect);
     this.group.add(label);
     this.layer.add(this.group);
+    this.setupTextEditing();
     this.layer.draw();
   }
 
@@ -246,7 +260,157 @@ export class Node {
     this.layer.draw();
   }
 
+  private setupTextEditing(): void {
+    // Start editing mode when node is created with empty text
+    if (this.currentText === "" || this.currentText === "New Node") {
+      // Start editing immediately but allow the node to be rendered first
+      requestAnimationFrame(() => {
+        this.startEditing();
+      });
+    }
+    
+    // Set up double-click to edit
+    this.group.on('dblclick', () => {
+      this.startEditing();
+    });
+  }
+
+  public startEditing(): void {
+    if (this.isEditing) return;
+    
+    console.log('🎯 Starting edit mode for node with text:', this.currentText);
+    this.isEditing = true;
+    this.currentText = this.textElement.text();
+    
+    // Add keyboard event listener with high priority capture
+    document.addEventListener('keydown', this.handleKeydown, true);
+    
+    // Visual feedback for editing mode
+    this.rectElement.stroke("#00FF88");
+    this.rectElement.strokeWidth(2);
+    this.layer.draw();
+    
+    console.log('✅ Edit mode active, listening for keyboard events');
+  }
+
+  private handleKeydown = (e: KeyboardEvent): void => {
+    if (!this.isEditing) return;
+    
+    console.log('⌨️ Node keydown event:', e.key, 'code:', e.code);
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Handle special keys
+    switch (e.key) {
+      case 'Enter':
+        console.log('📝 Finishing edit');
+        this.finishEditing();
+        return;
+      case 'Escape':
+        console.log('❌ Canceling edit');
+        this.cancelEditing();
+        return;
+      case 'Backspace':
+        console.log('⬅️ Backspace - removing character');
+        this.currentText = this.currentText.slice(0, -1);
+        this.updateDisplayText();
+        return;
+      case 'Delete':
+        console.log('🗑️ Delete - removing character');
+        this.currentText = this.currentText.slice(0, -1);
+        this.updateDisplayText();
+        return;
+    }
+    
+    // Handle printable characters
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Check length limit
+      if (this.currentText.length < LAYOUT_CONFIG.maxNodeTextLength) {
+        console.log('➕ Adding character:', e.key, 'to text:', this.currentText);
+        this.currentText += e.key;
+        this.updateDisplayText();
+      } else {
+        console.log('⚠️ Text length limit reached');
+      }
+    }
+  };
+
+  private updateDisplayText(): void {
+    const wrappedText = this.wrapText(this.currentText, 25);
+    this.textElement.text(wrappedText);
+    
+    // Measure new text dimensions
+    const textWidth = this.textElement.width();
+    const textHeight = this.textElement.height();
+    const nodeWidth = textWidth + this.padding * 2;
+    const nodeHeight = textHeight + this.padding * 2;
+    
+    // Update rectangle size
+    this.rectElement.width(nodeWidth);
+    this.rectElement.height(nodeHeight);
+    
+    // Keep text centered
+    this.textElement.x(this.padding);
+    this.textElement.y(this.padding);
+    
+    this.layer.draw();
+  }
+
+  private finishEditing(): void {
+    if (!this.isEditing) return;
+    
+    console.log('📝 Finishing edit with text:', this.currentText);
+    this.isEditing = false;
+    document.removeEventListener('keydown', this.handleKeydown, true);
+    
+    // Restore normal appearance
+    this.updateVisualStateOnly();
+    
+    // Notify parent of text change
+    if (this.onTextChange) {
+      this.onTextChange(this.currentText);
+    }
+    
+    this.layer.draw();
+  }
+
+  private cancelEditing(): void {
+    if (!this.isEditing) return;
+    
+    console.log('❌ Canceling edit');
+    this.isEditing = false;
+    document.removeEventListener('keydown', this.handleKeydown, true);
+    
+    // Restore original text
+    const wrappedText = this.wrapText(this.textElement.text(), 25);
+    this.textElement.text(wrappedText);
+    this.currentText = this.textElement.text();
+    
+    // Restore normal appearance
+    this.updateVisualStateOnly();
+    this.layer.draw();
+  }
+
+  public getText(): string {
+    return this.currentText;
+  }
+
+  public setText(text: string): void {
+    this.currentText = text;
+    const wrappedText = this.wrapText(text, 25);
+    this.textElement.text(wrappedText);
+    this.updateDisplayText();
+  }
+
+  public getIsEditing(): boolean {
+    return this.isEditing;
+  }
+
   public remove(): void {
+    // Clean up event listeners
+    if (this.isEditing) {
+      document.removeEventListener('keydown', this.handleKeydown, true);
+    }
     this.group.destroy();
     this.layer.draw();
   }

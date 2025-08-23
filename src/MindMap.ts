@@ -50,14 +50,20 @@ export class MindMap {
 
   private initKeyboardShortcuts(): void {
     window.addEventListener("keydown", (e) => {
-      // Only handle shortcuts when no input is focused
+      const isEditing = this.controller.isAnyNodeEditing();
+      console.log('🎮 MindMap keydown:', e.key, 'isEditing:', isEditing);
+      
+      // Only handle shortcuts when no input is focused and no node is being edited
       if (
         document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
+        document.activeElement?.tagName === "TEXTAREA" ||
+        isEditing
       ) {
+        console.log('🚫 MindMap skipping key handling - input focused or node editing');
         return;
       }
 
+      console.log('✅ MindMap handling key:', e.key);
       switch (e.key) {
         case "ArrowRight":
           e.preventDefault();
@@ -69,7 +75,7 @@ export class MindMap {
           break;
         case "Enter":
           e.preventDefault();
-          this.addChildToSelected("New Node", NodeType.TASK);
+          this.addChildToSelected("", NodeType.TASK);
           break;
         case "Delete":
         case "Backspace":
@@ -86,7 +92,7 @@ export class MindMap {
   }
 
   private addNodeToSide(side: "left" | "right"): void {
-    const nodeText = this.getNodeText();
+    const nodeText = ""; // Start with empty text for immediate editing
     const nodeType = this.getRandomNodeType();
 
     try {
@@ -97,7 +103,7 @@ export class MindMap {
     }
   }
 
-  private addChildToSelected(text: string = "New Node", type: NodeType = NodeType.TASK): void {
+  private addChildToSelected(text: string = "", type: NodeType = NodeType.TASK): void {
     if (this.selectedNodeId) {
       // Add child to the selected node
       try {
@@ -169,14 +175,14 @@ export class MindMap {
 
   public addChildToNode(
     parentId: string,
-    text: string,
+    text: string = "",
     type: NodeType = NodeType.TASK
   ): string {
     return this.controller.addNodeToExisting(parentId, text, type);
   }
 
   public addRootChild(
-    text: string,
+    text: string = "",
     type: NodeType = NodeType.TASK,
     side: "left" | "right" = "right"
   ): string {

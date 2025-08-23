@@ -146,6 +146,7 @@ export class MindmapController {
       isRoot: type === NodeType.ROOT,
       layer: this.layer,
       customColor: config.color,
+      onTextChange: (newText: string) => this.handleNodeTextChange(nodeId, newText),
     });
 
     this.konvaNodes.set(nodeId, node);
@@ -674,6 +675,15 @@ export class MindmapController {
     this.connectionCache.clearCache();
   }
 
+  public isAnyNodeEditing(): boolean {
+    for (const [nodeId, node] of this.konvaNodes) {
+      if (node.getIsEditing()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public removeNode(nodeId: string): void {
     // Store parent info before recursive deletion for repositioning
     const nodePosition = this.positioner.getNodePosition(nodeId);
@@ -1004,6 +1014,22 @@ export class MindmapController {
         targetNode.setDropTarget(false);
       }
       this.lastDropTargetId = null;
+    }
+  }
+
+  private handleNodeTextChange(nodeId: string, newText: string): void {
+    // Update the node's text and trigger a layout update if the text size changed significantly
+    const node = this.konvaNodes.get(nodeId);
+    if (!node) return;
+
+    // Get the parent to trigger repositioning of siblings if needed
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    if (nodePosition && nodePosition.parentId) {
+      // Reposition siblings to account for size changes
+      setTimeout(() => {
+        this.repositionSiblings(nodePosition.parentId!);
+        this.updateConnectionsSimple(nodePosition.parentId!);
+      }, 50);
     }
   }
 
