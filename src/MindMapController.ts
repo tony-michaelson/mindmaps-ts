@@ -24,6 +24,8 @@ export class MindmapController {
   private selectedNodeId: string | null = null;
   private pendingRedraw = false;
   private dragUpdateThrottle = 0;
+  private highlightUpdateThrottle = 0;
+  private connectionUpdatePending = false;
   private lastDropTargetId: string | null = null;
   public onNodeSelected?: (nodeId: string | null) => void;
 
@@ -893,13 +895,13 @@ export class MindmapController {
 
 
   private throttledDragUpdate(nodeId: string, group: Konva.Group): void {
-    // Only update connection of the dragged node, not all connections
-    this.updateSingleNodeConnection(nodeId);
+    // Use requestAnimationFrame for smooth connection updates
+    this.scheduleDragConnectionUpdate(nodeId);
     
-    // Throttle drop target highlighting to every 100ms
+    // Update drop target highlighting less frequently (every 150ms) for performance
     const now = Date.now();
-    if (now - this.dragUpdateThrottle > 100) {
-      this.dragUpdateThrottle = now;
+    if (now - this.highlightUpdateThrottle > 150) {
+      this.highlightUpdateThrottle = now;
       
       // Get center of dragged node
       const rect = group.findOne('Rect') as Konva.Rect;
@@ -911,34 +913,42 @@ export class MindmapController {
     }
   }
 
+  private scheduleDragConnectionUpdate(nodeId: string): void {
+    if (this.connectionUpdatePending) return;
+    
+    this.connectionUpdatePending = true;
+    requestAnimationFrame(() => {
+      this.updateSingleNodeConnection(nodeId);
+      this.connectionUpdatePending = false;
+    });
+  }
+
   private updateSingleNodeConnection(nodeId: string): void {
     // Update connection FROM parent TO this node (if it has a parent)
     const nodePosition = this.positioner.getNodePosition(nodeId);
     if (nodePosition && nodePosition.parentId) {
       const connectionId = `${nodePosition.parentId}-${nodeId}`;
-      const oldConnection = this.connections.get(connectionId);
-      
-      if (oldConnection) {
-        // Remove old connection and create new one with current visual positions
-        oldConnection.destroy();
-        this.createConnectionFromVisualPositions(nodePosition.parentId, nodeId);
-      }
+      this.updateConnectionPath(connectionId, nodePosition.parentId, nodeId);
     }
     
     // Update connections FROM this node TO its children
     const children = this.positioner.getChildren(nodeId);
     children.forEach(childId => {
       const connectionId = `${nodeId}-${childId}`;
-      const oldConnection = this.connections.get(connectionId);
-      
-      if (oldConnection) {
-        // Remove old connection and create new one with current visual positions
-        oldConnection.destroy();
-        this.createConnectionFromVisualPositions(nodeId, childId);
-      }
+      this.updateConnectionPath(connectionId, nodeId, childId);
     });
     
     this.layer.draw();
+  }
+
+  private updateConnectionPath(connectionId: string, parentId: string, childId: string): void {
+    const oldConnection = this.connections.get(connectionId);
+    if (!oldConnection) return;
+    
+    // Remove old connection and create new one with current visual positions
+    // This approach is more reliable than modifying sceneFunc
+    oldConnection.destroy();
+    this.createConnectionFromVisualPositions(parentId, childId);
   }
 
   private updateDropTargetHighlightingOptimized(draggedNodeId: string, dragX: number, dragY: number): void {
