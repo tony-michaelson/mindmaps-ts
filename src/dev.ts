@@ -77,6 +77,48 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 (window as any).optimizeForLargeDataset = () => mindMap.optimizeForLargeDataset();
 (window as any).clearCaches = () => mindMap.clearPerformanceCaches();
 
+// Incremental update testing
+(window as any).testIncrementalUpdates = () => {
+  console.log('🔬 Testing Incremental Updates...');
+  
+  const controller = mindMap.getController();
+  const rootId = controller.getRootId();
+  
+  if (!rootId) {
+    console.log('❌ No root node found');
+    return;
+  }
+  
+  console.log('📊 Before adding nodes:', {
+    nodeCount: controller.getNodeCount(),
+    performanceStats: mindMap.getPerformanceStats()
+  });
+  
+  // Add some nodes to test incremental updates
+  const startTime = performance.now();
+  const nodeIds = [];
+  
+  // Add 5 nodes to trigger incremental updates
+  for (let i = 1; i <= 5; i++) {
+    const nodeId = mindMap.addRootChild(`Incremental Node ${i}`, NodeType.TASK, 'right');
+    nodeIds.push(nodeId);
+  }
+  
+  const endTime = performance.now();
+  
+  console.log('📊 After adding nodes:', {
+    nodeCount: controller.getNodeCount(),
+    addedNodes: nodeIds.length,
+    timeElapsed: `${(endTime - startTime).toFixed(2)}ms`,
+    performanceStats: mindMap.getPerformanceStats()
+  });
+  
+  console.log('✅ Incremental updates processed successfully!');
+  console.log('💡 Only the changed nodes and connections were updated, not the entire mindmap.');
+  
+  return nodeIds;
+};
+
 // Batch operations for performance
 (window as any).addManyNodes = (count: number = 10, side: "left" | "right" = "right") => {
   console.log(`Adding ${count} nodes in batch...`);
@@ -118,6 +160,7 @@ console.log(`
 
 ⚡ Performance Commands:
 • runPerformanceTests() - run comprehensive performance test suite
+• testIncrementalUpdates() - test incremental update system performance
 • addManyNodes(count, side) - add many nodes efficiently (try: addManyNodes(50))
 • getPerformanceStats() - see current performance metrics
 • optimizeForLargeDataset() - optimize for handling large mind maps

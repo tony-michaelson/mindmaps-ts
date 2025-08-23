@@ -34,6 +34,11 @@ export class MindmapController {
   private drawManager: DrawManager;
   private objectPool: ObjectPoolManager;
   private lastViewport: ViewportInfo | null = null;
+  
+  // Incremental update state tracking
+  private needsFullRefresh: boolean = true;
+  private currentNodeStates: Map<string, NodeState> = new Map();
+  private currentConnectionStates: Map<string, ConnectionState> = new Map();
 
   constructor(layer: Konva.Layer, rootX: number, rootY: number, stage?: Konva.Stage) {
     this.layer = layer;
@@ -67,6 +72,10 @@ export class MindmapController {
     );
 
     this.createAndPositionNode(nodeId, position, text, NodeType.ROOT);
+    
+    // Initialize incremental updater with first state
+    this.applyIncrementalUpdates();
+    
     return nodeId;
   }
 
@@ -373,28 +382,8 @@ export class MindmapController {
       this.rootY
     );
 
-    // Get current viewport for culling
-    const viewport = this.viewportCuller.getViewportInfo();
-
-    updatedPositions.forEach((position) => {
-      const nodeId = this.findNodeIdByPosition(position);
-      if (nodeId) {
-        const konvaNode = this.konvaNodes.get(nodeId);
-        if (konvaNode) {
-          // Check if node will be visible at target position
-          if (this.viewportCuller.isNodeVisible(
-            position.x, position.y, 
-            LAYOUT_CONFIG.width, LAYOUT_CONFIG.height, 
-            viewport
-          )) {
-            this.animateToPosition(konvaNode, position);
-          } else {
-            // For off-screen nodes, just set position without animation
-            this.setPositionWithoutAnimation(konvaNode, position);
-          }
-        }
-      }
-    });
+    // Use incremental updates instead of updating all siblings
+    this.applyIncrementalNodeUpdates(updatedPositions);
   }
 
   private updateConnectionsWithoutDraw(parentId: string): void {
@@ -996,10 +985,250 @@ export class MindmapController {
       group.opacity(isVisible || isRoot ? 1.0 : 0.1);
     });
     
-    // Update connections based on visibility
-    this.updateAllConnections();
+    // Update connections based on visibility using incremental updates
+    this.applyIncrementalUpdates();
     
     this.lastViewport = viewport;
+  }
+
+  // Incremental update methods
+  private buildCurrentStates(): void {
+    this.currentNodeStates.clear();
+    this.currentConnectionStates.clear();
+
+    // Build node states
+    this.konvaNodes.forEach((node, nodeId) => {
+      const group = node.getGroup();
+      const position = this.positioner.getNodePosition(nodeId);
+      
+      if (position) {
+        const isVisible = group.opacity() > 0.5;
+        const isSelected = nodeId === this.selectedNodeId;
+        const textElement = group.findOne('Text') as Konva.Text;
+        const text = textElement ? textElement.text() : '';
+        
+        const nodeState = this.incrementalUpdater.buildCurrentNodeState(
+          nodeId, position, text, isVisible, isSelected
+        );
+        this.currentNodeStates.set(nodeId, nodeState);
+      }
+    });
+
+    // Build connection states
+    this.connections.forEach((shape, connectionId) => {
+      const [fromNodeId, toNodeId] = connectionId.split('-');
+      const fromNode = this.konvaNodes.get(fromNodeId);
+      const toNode = this.konvaNodes.get(toNodeId);
+      
+      if (fromNode && toNode) {
+        const fromGroup = fromNode.getGroup();
+        const toGroup = toNode.getGroup();
+        const fromRect = fromGroup.children![0] as Konva.Rect;
+        const toRect = toGroup.children![0] as Konva.Rect;
+        
+        const fromPosition: NodePosition = {
+          x: fromGroup.x() + fromRect.width() / 2,
+          y: fromGroup.y() + fromRect.height() / 2,
+          level: 0,
+          stackIndex: 0,
+          side: "right"
+        };
+        
+        const toPosition: NodePosition = {
+          x: toGroup.x() + toRect.width() / 2,
+          y: toGroup.y() + toRect.height() / 2,
+          level: 0,
+          stackIndex: 0,
+          side: "right"
+        };
+        
+        const isVisible = shape.visible();
+        
+        const connectionState = this.incrementalUpdater.buildCurrentConnectionState(
+          connectionId, fromNodeId, toNodeId, fromPosition, toPosition, isVisible
+        );
+        this.currentConnectionStates.set(connectionId, connectionState);
+      }
+    });
+  }
+
+  private applyIncrementalUpdates(): void {
+    if (this.needsFullRefresh) {
+      this.buildCurrentStates();
+      this.incrementalUpdater.updatePreviousStates(this.currentNodeStates, this.currentConnectionStates);
+      this.needsFullRefresh = false;
+      return;
+    }
+
+    this.buildCurrentStates();
+    const delta = this.incrementalUpdater.calculateDelta(this.currentNodeStates, this.currentConnectionStates);
+    
+    if (!this.incrementalUpdater.hasSignificantChanges(delta)) {
+      return;
+    }
+
+    const updateOrder = this.incrementalUpdater.optimizeUpdateOrder(delta);
+    this.applyDeltaUpdates(delta, updateOrder);
+    this.incrementalUpdater.updatePreviousStates(this.currentNodeStates, this.currentConnectionStates);
+  }
+
+  private applyDeltaUpdates(delta: any, updateOrder: string[]): void {
+    const viewport = this.viewportCuller.getViewportInfo();
+    let needsRedraw = false;
+
+    for (const updateOperation of updateOrder) {
+      const [operation, type, id] = updateOperation.split('-');
+      
+      if (operation === 'remove' && type === 'node') {
+        this.removeNodeVisual(id);
+        needsRedraw = true;
+      } else if (operation === 'remove' && type === 'connection') {
+        this.removeConnectionVisual(id);
+        needsRedraw = true;
+      } else if (operation === 'add' && type === 'node') {
+        this.addNodeVisual(id);
+        needsRedraw = true;
+      } else if (operation === 'move' && type === 'node') {
+        const nodeData = delta.movedNodes.get(id);
+        if (nodeData) {
+          this.moveNodeVisual(id, nodeData.newPosition, viewport);
+          needsRedraw = true;
+        }
+      } else if (operation === 'change' && type === 'node') {
+        const nodeData = delta.changedNodes.get(id);
+        if (nodeData) {
+          this.updateNodeVisual(id, nodeData.newState, viewport);
+          needsRedraw = true;
+        }
+      } else if (operation === 'add' && type === 'connection') {
+        this.addConnectionVisual(id, viewport);
+        needsRedraw = true;
+      } else if (operation === 'move' && type === 'connection') {
+        const connectionData = delta.movedConnections.get(id);
+        if (connectionData) {
+          this.updateConnectionVisual(id, connectionData.newState, viewport);
+          needsRedraw = true;
+        }
+      }
+    }
+
+    if (needsRedraw) {
+      this.layer.draw();
+    }
+  }
+
+  private removeNodeVisual(nodeId: string): void {
+    const node = this.konvaNodes.get(nodeId);
+    if (node) {
+      node.remove();
+      this.konvaNodes.delete(nodeId);
+    }
+  }
+
+  private removeConnectionVisual(connectionId: string): void {
+    const connection = this.connections.get(connectionId);
+    if (connection) {
+      connection.destroy();
+      this.connections.delete(connectionId);
+      this.connectionCache.delete(connectionId);
+    }
+  }
+
+  private addNodeVisual(nodeId: string): void {
+    // Node creation is handled by existing methods
+    // This would be called if we detect a new node in the delta
+  }
+
+  private moveNodeVisual(nodeId: string, newPosition: NodePosition, viewport: ViewportInfo): void {
+    const node = this.konvaNodes.get(nodeId);
+    if (node) {
+      if (this.viewportCuller.isNodeVisible(
+        newPosition.x, newPosition.y,
+        LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
+        viewport
+      )) {
+        this.animateToPosition(node, newPosition);
+      } else {
+        this.setPositionWithoutAnimation(node, newPosition);
+      }
+    }
+  }
+
+  private updateNodeVisual(nodeId: string, newState: NodeState, viewport: ViewportInfo): void {
+    const node = this.konvaNodes.get(nodeId);
+    if (node) {
+      node.setSelected(newState.selected);
+      const group = node.getGroup();
+      group.opacity(newState.visible ? 1.0 : 0.1);
+    }
+  }
+
+  private addConnectionVisual(connectionId: string, viewport: ViewportInfo): void {
+    const [parentId, childId] = connectionId.split('-');
+    const parentNode = this.konvaNodes.get(parentId);
+    const childNode = this.konvaNodes.get(childId);
+    
+    if (!parentNode || !childNode) return;
+    
+    this.createInitialConnection(childId, parentId);
+  }
+
+  private updateConnectionVisual(connectionId: string, newState: ConnectionState, viewport: ViewportInfo): void {
+    const cachedConnection = this.connectionCache.get(connectionId);
+    if (cachedConnection) {
+      if (this.viewportCuller.isConnectionVisible(
+        newState.fromPosition.x, newState.fromPosition.y, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
+        newState.toPosition.x, newState.toPosition.y, LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
+        viewport
+      )) {
+        cachedConnection.shape.visible(true);
+        this.updateConnectionPath(cachedConnection.shape, newState.fromPosition, newState.toPosition);
+      } else {
+        cachedConnection.shape.visible(false);
+      }
+    }
+  }
+
+  private applyIncrementalNodeUpdates(updatedPositions: NodePosition[]): void {
+    const viewport = this.viewportCuller.getViewportInfo();
+    
+    updatedPositions.forEach((position) => {
+      const nodeId = this.findNodeIdByPosition(position);
+      if (nodeId) {
+        this.incrementalUpdater.markNodeDirty(nodeId);
+        const konvaNode = this.konvaNodes.get(nodeId);
+        if (konvaNode) {
+          // Check if node will be visible at target position
+          if (this.viewportCuller.isNodeVisible(
+            position.x, position.y, 
+            LAYOUT_CONFIG.width, LAYOUT_CONFIG.height, 
+            viewport
+          )) {
+            this.animateToPosition(konvaNode, position);
+          } else {
+            // For off-screen nodes, just set position without animation
+            this.setPositionWithoutAnimation(konvaNode, position);
+          }
+        }
+        
+        // Mark connections involving this node as dirty
+        const children = this.positioner.getChildren(nodeId);
+        children.forEach(childId => {
+          this.incrementalUpdater.markConnectionDirty(`${nodeId}-${childId}`);
+        });
+        
+        // Find parent and mark parent->node connection as dirty
+        for (const [parentId, childrenArray] of this.positioner["childrenMap"]) {
+          if (childrenArray.includes(nodeId)) {
+            this.incrementalUpdater.markConnectionDirty(`${parentId}-${nodeId}`);
+            break;
+          }
+        }
+      }
+    });
+    
+    // Apply incremental updates at the end
+    setTimeout(() => this.applyIncrementalUpdates(), 0);
   }
 }
 
