@@ -194,18 +194,29 @@ export class MindmapController {
       customColor: config.color,
     });
 
-    // Check visibility for optimization
+    // Check if target position will be visible - for new nodes, start with full opacity
+    // since they will animate and should be visible during the animation
     const viewport = this.viewportCuller.getViewportInfo();
-    const isVisible = this.viewportCuller.isNodeVisible(
+    const targetIsVisible = this.viewportCuller.isNodeVisible(
       position.x, position.y,
       LAYOUT_CONFIG.width, LAYOUT_CONFIG.height,
       viewport
     );
 
-    // If node is not visible, make it temporarily transparent
-    if (!isVisible && type !== NodeType.ROOT) {
+    // For new nodes that will animate, start with full opacity
+    // The animation onFinish callback will handle final opacity
+    if (!targetIsVisible && type !== NodeType.ROOT) {
+      // Only set low opacity if target position is far off-screen
       const group = node.getGroup();
-      group.opacity(0.1);
+      const distance = Math.sqrt(
+        Math.pow(position.x - (viewport.x + viewport.width / 2), 2) +
+        Math.pow(position.y - (viewport.y + viewport.height / 2), 2)
+      );
+      
+      // Only reduce opacity if very far from viewport
+      if (distance > viewport.width + viewport.height) {
+        group.opacity(0.1);
+      }
     }
 
     this.konvaNodes.set(nodeId, node);
@@ -260,6 +271,9 @@ export class MindmapController {
         this.updateAllConnectionsWithoutDraw();
       },
       onFinish: () => {
+        // Restore full opacity after animation completes
+        group.opacity(1.0);
+        
         // Ensure connections are properly updated at the end
         this.updateAllConnections();
       }
@@ -272,6 +286,9 @@ export class MindmapController {
     const group = node.getGroup();
     group.x(targetPosition.x - LAYOUT_CONFIG.width / 2);
     group.y(targetPosition.y - LAYOUT_CONFIG.height / 2);
+    
+    // Restore opacity for off-screen nodes that are positioned
+    group.opacity(1.0);
   }
 
   private updateConnections(parentId: string): void {
