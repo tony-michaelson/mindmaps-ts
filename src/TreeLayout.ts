@@ -33,7 +33,8 @@ export class TreeLayoutCalculator {
   // Calculate layout for a single tree (either left or right side)
   calculateTree(
     node: TreeNode,
-    margin: number = LAYOUT_CONFIG.verticalSpacing
+    margin: number = LAYOUT_CONFIG.verticalSpacing,
+    side: "left" | "right" = "right"
   ): SubtreeLayout {
     // Base case: leaf node
     if (node.children.length === 0) {
@@ -53,14 +54,15 @@ export class TreeLayoutCalculator {
 
     // Recursively calculate child layouts
     const childLayouts = node.children.map((child) =>
-      this.calculateTree(child, margin)
+      this.calculateTree(child, margin, side)
     );
 
     // Position children with outline-based collision avoidance
     const positionedChildren = this.appendSubtrees(
       childLayouts,
       node.width,
-      margin
+      margin,
+      side
     );
 
     // Create combined outline for this subtree
@@ -88,7 +90,8 @@ export class TreeLayoutCalculator {
   private appendSubtrees(
     subtrees: SubtreeLayout[],
     parentWidth: number,
-    margin: number
+    margin: number,
+    side: "left" | "right" = "right"
   ): SubtreeLayout[] {
     if (subtrees.length === 0) return [];
 
@@ -98,7 +101,10 @@ export class TreeLayoutCalculator {
       LAYOUT_CONFIG.horizontalSpacing, 
       maxChildWidth * 0.3 + LAYOUT_CONFIG.horizontalSpacing
     );
-    const horizontal = parentWidth + horizontalSpacing;
+    // For left side, position children to the left of parent
+    const horizontal = side === "left" ? 
+      -(horizontalSpacing + maxChildWidth) : 
+      parentWidth + horizontalSpacing;
     const positioned: SubtreeLayout[] = [];
 
     if (subtrees.length === 1) {
@@ -227,7 +233,7 @@ export class TreeLayoutCalculator {
         children: rightNodes,
       };
 
-      const rightLayout = this.calculateTree(rightTree, margin);
+      const rightLayout = this.calculateTree(rightTree, margin, "right");
       const rightResults = this.calculateAbsolutePositions(
         rightLayout,
         rootX + rootNode.width / 2,
@@ -249,7 +255,7 @@ export class TreeLayoutCalculator {
         children: leftNodes,
       };
 
-      const leftLayout = this.calculateTree(leftTree, margin);
+      const leftLayout = this.calculateTree(leftTree, margin, "left");
 
       // For left side, calculate positions then mirror to align right edges
       const tempLeftResults = this.calculateAbsolutePositions(

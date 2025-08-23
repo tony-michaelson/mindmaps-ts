@@ -115,19 +115,27 @@ export class HierarchicalPositioner {
       return childSide === side;
     });
 
-    return sideChildren.map(childId => this.createTreeNode(childId));
+    return sideChildren.map(childId => this.createTreeNode(childId, side));
   }
 
   // Create tree node for layout calculation
-  private createTreeNode(nodeId: string): TreeNode {
+  private createTreeNode(nodeId: string, filterBySide?: "left" | "right"): TreeNode {
     const nodeData = this.nodeData.get(nodeId) || { width: LAYOUT_CONFIG.width, height: LAYOUT_CONFIG.height };
-    const children = this.childrenMap.get(nodeId) || [];
+    let children = this.childrenMap.get(nodeId) || [];
+    
+    // Filter children by side if specified
+    if (filterBySide) {
+      children = children.filter(childId => {
+        const childSide = this.nodeSides.get(childId);
+        return childSide === filterBySide;
+      });
+    }
     
     return {
       id: nodeId,
       width: nodeData.width,
       height: nodeData.height,
-      children: children.map(childId => this.createTreeNode(childId))
+      children: children.map(childId => this.createTreeNode(childId, filterBySide))
     };
   }
 
