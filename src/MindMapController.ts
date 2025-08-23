@@ -11,7 +11,7 @@ import {
 export class MindmapController {
   private positioner = new HierarchicalPositioner();
   private konvaNodes: Map<string, Node> = new Map();
-  private connections: Map<string, Konva.Line> = new Map();
+  private connections: Map<string, Konva.Shape> = new Map();
   private layer: Konva.Layer;
   private rootId: string | null = null;
   private rootX: number;
@@ -139,6 +139,14 @@ export class MindmapController {
       x: targetPosition.x - LAYOUT_CONFIG.width / 2,
       y: targetPosition.y - LAYOUT_CONFIG.height / 2,
       easing: Konva.Easings.EaseInOut,
+      onUpdate: () => {
+        // Update connections during animation
+        this.updateAllConnections();
+      },
+      onFinish: () => {
+        // Ensure connections are properly updated at the end
+        this.updateAllConnections();
+      }
     });
 
     tween.play();
@@ -163,7 +171,12 @@ export class MindmapController {
       }
 
       // Create new connection
-      const newConnection = this.createConnectionLine(parentPos, childPos);
+      const newConnection = this.createConnectionLine(
+        parentPos,
+        childPos,
+        parentId,
+        childId
+      );
       this.connections.set(connectionId, newConnection);
       this.layer.add(newConnection);
       newConnection.moveToBottom();
@@ -172,26 +185,170 @@ export class MindmapController {
     this.layer.draw();
   }
 
+  private updateAllConnections(): void {
+    // Update all connections by redrawing them based on current visual node positions
+    this.connections.forEach((connection, connectionId) => {
+      const [parentId, childId] = connectionId.split('-');
+      const parentNode = this.konvaNodes.get(parentId);
+      const childNode = this.konvaNodes.get(childId);
+      
+      if (parentNode && childNode) {
+        // Get current visual positions from Konva groups
+        const parentGroup = parentNode.getGroup();
+        const childGroup = childNode.getGroup();
+        
+        // Convert visual positions back to logical center positions
+        const parentPos = {
+          x: parentGroup.x() + parentGroup.width() / 2,
+          y: parentGroup.y() + parentGroup.height() / 2,
+          level: 0, // These fields aren't used for connection drawing
+          stackIndex: 0,
+          side: "right" as const
+        };
+        
+        const childPos = {
+          x: childGroup.x() + childGroup.width() / 2,
+          y: childGroup.y() + childGroup.height() / 2,
+          level: 0,
+          stackIndex: 0,
+          side: "right" as const
+        };
+        
+        // Remove old connection
+        connection.destroy();
+        
+        // Create new connection with current visual positions
+        const newConnection = this.createConnectionLine(parentPos, childPos, parentId, childId);
+        this.connections.set(connectionId, newConnection);
+        this.layer.add(newConnection);
+        newConnection.moveToBottom();
+      }
+    });
+    this.layer.draw();
+  }
+
   private createConnectionLine(
     parentPos: NodePosition,
-    childPos: NodePosition
-  ): Konva.Line {
-    let startX, endX;
+    childPos: NodePosition,
+    parentId: string,
+    childId: string
+  ): Konva.Shape {
+    const parentNode = this.konvaNodes.get(parentId);
+    const childNode = this.konvaNodes.get(childId);
 
-    if (childPos.side === "right") {
-      startX = parentPos.x + LAYOUT_CONFIG.width / 2;
-      endX = childPos.x - LAYOUT_CONFIG.width / 2;
-    } else {
-      startX = parentPos.x - LAYOUT_CONFIG.width / 2;
-      endX = childPos.x + LAYOUT_CONFIG.width / 2;
+    if (!parentNode || !childNode) {
+      // Fallback to simple straight line
+      return new Konva.Line({
+        points: [parentPos.x, parentPos.y, childPos.x, childPos.y],
+        stroke: "#838383ff",
+        strokeWidth: 1,
+        listening: false,
+      });
     }
 
-    return new Konva.Line({
-      points: [startX, parentPos.y, endX, childPos.y],
-      stroke: "#666",
-      strokeWidth: 2,
+    const parentWidth = parentNode.getGroup().width();
+    const parentHeight = parentNode.getGroup().height();
+    const childWidth = childNode.getGroup().width();
+    const childHeight = childNode.getGroup().height();
+
+    // Calculate actual visual positions (nodes are positioned at center - width/2)
+    const parentX = parentPos.x - parentWidth / 2;
+    const parentY = parentPos.y - parentHeight / 2;
+    const childX = childPos.x - childWidth / 2;
+    const childY = childPos.y - childHeight / 2;
+
+    // Calculate connection points using the smart algorithm
+    const connector = this.calculateConnector(
+      parentX, parentY, parentWidth, parentHeight,
+      childX, childY, childWidth, childHeight
+    );
+
+    // Create curved line using Konva.Shape with custom drawing
+    return new Konva.Shape({
+      sceneFunc: (context, shape) => {
+        context.beginPath();
+        context.moveTo(connector.from.x, connector.from.y);
+        
+        // Calculate control point offset
+        const baseOffset = connector.controlPointOffset * (connector.from.y - connector.to.y);
+        const maxOffset = Math.min(childHeight, parentHeight) * 1.5;
+        const offset = Math.max(-maxOffset, Math.min(maxOffset, baseOffset));
+        
+        // Draw quadratic Bézier curve
+        context.quadraticCurveTo(
+          connector.from.x,
+          connector.to.y - offset,
+          connector.to.x,
+          connector.to.y
+        );
+        
+        context.fillStrokeShape(shape);
+      },
+      stroke: "#838383ff",
+      strokeWidth: 1,
       listening: false,
     });
+  }
+
+  private calculateConnector(
+    parentX: number, parentY: number, parentWidth: number, parentHeight: number,
+    childX: number, childY: number, childWidth: number, childHeight: number
+  ) {
+    const tolerance = 10;
+    const childMid = childY + childHeight * 0.5;
+    const parentMid = parentY + parentHeight * 0.5;
+
+    // Check if nodes are horizontally aligned
+    if (Math.abs(parentMid - childMid) + tolerance < Math.max(childHeight, parentHeight * 0.75)) {
+      return this.horizontalConnector(
+        parentX, parentY, parentWidth, parentHeight,
+        childX, childY, childWidth, childHeight
+      );
+    } else {
+      return this.verticalConnector(
+        parentX, parentY, parentWidth, parentHeight,
+        childX, childY, childWidth, childHeight
+      );
+    }
+  }
+
+  private horizontalConnector(
+    parentX: number, parentY: number, parentWidth: number, parentHeight: number,
+    childX: number, childY: number, childWidth: number, childHeight: number
+  ) {
+    const childHorizontalOffset = parentX < childX ? 0.1 : 0.9;
+    const parentHorizontalOffset = 1 - childHorizontalOffset;
+    
+    return {
+      from: {
+        x: parentX + parentHorizontalOffset * parentWidth,  // Edge connection
+        y: parentY + 0.5 * parentHeight                     // Vertical center
+      },
+      to: {
+        x: childX + childHorizontalOffset * childWidth,
+        y: childY + 0.5 * childHeight
+      },
+      controlPointOffset: 0  // Minimal curve for horizontal alignment
+    };
+  }
+
+  private verticalConnector(
+    parentX: number, parentY: number, parentWidth: number, parentHeight: number,
+    childX: number, childY: number, childWidth: number, childHeight: number
+  ) {
+    const childHorizontalOffset = parentX < childX ? 0.1 : 0.9;
+    
+    return {
+      from: {
+        x: parentX + 0.5 * parentWidth,      // Horizontal center
+        y: parentY + 0.5 * parentHeight      // Vertical center
+      },
+      to: {
+        x: childX + childHorizontalOffset * childWidth,  // Left/right edge
+        y: childY + 0.5 * childHeight                     // Vertical center
+      },
+      controlPointOffset: 0.75  // Strong curve for vertical separation
+    };
   }
 
   private setupNodeInteractions(nodeId: string): void {
@@ -206,7 +363,12 @@ export class MindmapController {
       this.selectNode(nodeId);
     });
 
-    // Add drag handler for repositioning
+    // Add drag handlers for repositioning
+    group.on("dragmove", () => {
+      // Update connections while dragging
+      this.updateAllConnections();
+    });
+    
     group.on("dragend", () => {
       // For now, snap back to original position
       // Later we can implement drag-to-reparent logic
