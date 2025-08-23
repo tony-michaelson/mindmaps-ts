@@ -28,7 +28,13 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 
 // Add some helper functions for demo purposes
 (window as any).addRandomNode = (side: "left" | "right" = "right") => {
-  const topics = ["Research", "Design", "Development", "Testing", "Review"];
+  const topics = [
+    "Research",
+    "Design",
+    "The fix ensures that when text editing finishes, siblings will reposition based on the edited node's new dimensions,  ma",
+    "Testing",
+    "Review",
+  ];
   const types = [
     NodeType.TASK,
     NodeType.IDEA,
@@ -71,23 +77,23 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 // Performance testing function
 (window as any).performanceTest = (nodeCount: number = 100) => {
   console.log(`🚀 Starting performance test with ${nodeCount} nodes...`);
-  
+
   const startTime = performance.now();
-  
+
   // Add many nodes quickly to test batching performance
   for (let i = 0; i < nodeCount; i++) {
     const side = i % 2 === 0 ? "left" : "right";
     (window as any).addRandomNode(side);
   }
-  
+
   const endTime = performance.now();
   const duration = endTime - startTime;
-  
+
   console.log(`✅ Performance test completed:`);
   console.log(`   • Added ${nodeCount} nodes in ${duration.toFixed(2)}ms`);
   console.log(`   • Average: ${(duration / nodeCount).toFixed(2)}ms per node`);
   console.log(`   • Total nodes: ${mindMap.getNodeCount()}`);
-  
+
   // Test cache stats if available
   const controller = mindMap.getController();
   try {
@@ -97,11 +103,11 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   } catch (error) {
     console.log(`   • Cache stats not available`);
   }
-  
+
   return {
     duration,
     avgPerNode: duration / nodeCount,
-    totalNodes: mindMap.getNodeCount()
+    totalNodes: mindMap.getNodeCount(),
   };
 };
 

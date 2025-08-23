@@ -638,8 +638,8 @@ export class MindmapController {
   }
 
   private formatNodeText(text: string): string {
-    return text.length > LAYOUT_CONFIG.maxTextLength
-      ? text.substring(0, LAYOUT_CONFIG.maxTextLength - 3) + "..."
+    return text.length > LAYOUT_CONFIG.maxNodeTextLength
+      ? text.substring(0, LAYOUT_CONFIG.maxNodeTextLength - 3) + "..."
       : text;
   }
 
