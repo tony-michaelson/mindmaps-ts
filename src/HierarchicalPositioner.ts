@@ -178,6 +178,10 @@ export class HierarchicalPositioner {
     }
   }
 
+  updateNodeSide(nodeId: string, side: "left" | "right"): void {
+    this.nodeSides.set(nodeId, side);
+  }
+
   removeNode(nodeId: string): void {
     this.nodePositions.delete(nodeId);
     this.nodeSides.delete(nodeId);

@@ -481,8 +481,11 @@ export class MindmapController {
       // Efficiently update connections while dragging
       this.scheduleSmartConnectionUpdate();
       
-      // Update drop target highlighting
-      this.updateDropTargetHighlighting(nodeId, group.x(), group.y());
+      // Update drop target highlighting using center of dragged node
+      const rect = group.findOne('Rect') as Konva.Rect;
+      const centerX = group.x() + (rect ? rect.width() / 2 : 50);
+      const centerY = group.y() + (rect ? rect.height() / 2 : 25);
+      this.updateDropTargetHighlighting(nodeId, centerX, centerY);
     });
     
     group.on("dragend", () => {
@@ -495,7 +498,11 @@ export class MindmapController {
       // Clear all drop target highlighting
       this.clearDropTargetHighlighting();
       
-      this.handleNodeDrop(nodeId, group.x(), group.y());
+      // Use center of the dragged node for drop detection
+      const rect = group.findOne('Rect') as Konva.Rect;
+      const centerX = group.x() + (rect ? rect.width() / 2 : 50);
+      const centerY = group.y() + (rect ? rect.height() / 2 : 25);
+      this.handleNodeDrop(nodeId, centerX, centerY);
     });
   }
 
@@ -752,36 +759,71 @@ export class MindmapController {
     // Add to new parent
     this.positioner.addToChildrenMap(newParentId, nodeId);
     
-    // Update the node's position based on new parent
+    // Update the node's parentId in its position
+    nodePosition.parentId = newParentId;
+    this.positioner.updateNodePosition(nodeId, nodePosition);
+    
+    // Update the node's side to match the new parent's side
     const newParentSide = this.positioner.getNodeSide(newParentId);
-    const newPosition = this.positioner.calculateNodePosition(
-      nodeId,
-      newParentId,
-      newParentSide || "right",
+    this.updateNodeAndDescendantsSides(nodeId, newParentSide || "right");
+
+    // Clear all existing connections before recalculation to prevent duplicates
+    this.connections.forEach(connection => connection.destroy());
+    this.connections.clear();
+
+    // Trigger a full layout recalculation from the root
+    // This will properly position the reparented node and all its descendants
+    const updatedPositions = this.positioner.repositionSiblings(
+      this.rootId!,
       this.rootX,
       this.rootY
     );
 
-    // Update position in positioner
-    this.positioner.updateNodePosition(nodeId, newPosition);
+    // Animate all nodes to their new positions
+    updatedPositions.forEach((position) => {
+      const positionNodeId = this.findNodeIdByPosition(position);
+      if (positionNodeId) {
+        const konvaNode = this.konvaNodes.get(positionNodeId);
+        if (konvaNode) {
+          this.animateToPosition(konvaNode, position);
+        }
+      }
+    });
 
-    // Animate node to new position
-    const node = this.konvaNodes.get(nodeId);
-    if (node) {
-      this.animateToPosition(node, newPosition);
-    }
+    // Recreate all connections after the layout change
+    this.updateAllConnections();
+  }
 
-    // Reposition siblings in both old and new parent hierarchies
-    if (oldParentId) {
-      this.repositionSiblings(oldParentId);
-      this.updateConnectionsSimple(oldParentId);
-    }
+  private updateNodeAndDescendantsSides(nodeId: string, side: "left" | "right"): void {
+    // Update the node's side in the positioner
+    this.positioner.updateNodeSide(nodeId, side);
     
-    this.repositionSiblings(newParentId);
-    this.updateConnectionsSimple(newParentId);
+    // Recursively update all descendants to the same side and ensure parent relationships
+    const children = this.positioner.getChildren(nodeId);
+    children.forEach(childId => {
+      // Ensure the child knows its correct parent
+      const childPosition = this.positioner.getNodePosition(childId);
+      if (childPosition && childPosition.parentId !== nodeId) {
+        childPosition.parentId = nodeId;
+        this.positioner.updateNodePosition(childId, childPosition);
+      }
+      
+      this.updateNodeAndDescendantsSides(childId, side);
+    });
+  }
+
+  private updateAllConnections(): void {
+    // Clear all existing connections
+    this.connections.forEach(connection => connection.destroy());
+    this.connections.clear();
     
-    // Recursively reposition all descendants
-    this.repositionDescendants(nodeId);
+    // Recreate all connections
+    this.konvaNodes.forEach((node, nodeId) => {
+      const children = this.positioner.getChildren(nodeId);
+      if (children.length > 0) {
+        this.updateConnectionsSimple(nodeId);
+      }
+    });
   }
 
   private repositionDescendants(parentId: string): void {
