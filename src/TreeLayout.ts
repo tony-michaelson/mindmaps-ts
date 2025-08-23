@@ -92,7 +92,13 @@ export class TreeLayoutCalculator {
   ): SubtreeLayout[] {
     if (subtrees.length === 0) return [];
 
-    const horizontal = parentWidth + LAYOUT_CONFIG.horizontalSpacing;
+    // Calculate horizontal spacing based on the widest sibling node
+    const maxChildWidth = Math.max(...subtrees.map(subtree => subtree.width));
+    const horizontalSpacing = Math.max(
+      LAYOUT_CONFIG.horizontalSpacing, 
+      maxChildWidth * 0.3 + LAYOUT_CONFIG.horizontalSpacing
+    );
+    const horizontal = parentWidth + horizontalSpacing;
     const positioned: SubtreeLayout[] = [];
 
     if (subtrees.length === 1) {

@@ -29,8 +29,6 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 // Add some helper functions for demo purposes
 (window as any).addRandomNode = (side: "left" | "right" = "right") => {
   const topics = [
-    "Research",
-    "Design",
     "The fix ensures that when text editing finishes, siblings will reposition based on the edited node's new dimensions,  ma",
     "Testing",
     "Review",
