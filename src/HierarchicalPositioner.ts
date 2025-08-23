@@ -167,6 +167,10 @@ export class HierarchicalPositioner {
     return this.childrenMap.get(nodeId) || [];
   }
 
+  setChildrenArray(parentId: string, children: string[]): void {
+    this.childrenMap.set(parentId, children);
+  }
+
   removeNode(nodeId: string): void {
     this.nodePositions.delete(nodeId);
     this.nodeSides.delete(nodeId);

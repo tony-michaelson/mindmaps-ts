@@ -475,13 +475,98 @@ export class MindmapController {
     });
     
     group.on("dragend", () => {
-      // For now, snap back to original position
-      // Later we can implement drag-to-reparent logic
+      this.handleNodeDrop(nodeId, group.x(), group.y());
+    });
+  }
+
+  private handleNodeDrop(nodeId: string, dropX: number, dropY: number): void {
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    if (!nodePosition || !nodePosition.parentId) {
+      // Root node or invalid position - snap back to original
       const position = this.positioner.getNodePosition(nodeId);
       if (position) {
-        this.animateToPosition(node, position);
+        const node = this.konvaNodes.get(nodeId);
+        if (node) this.animateToPosition(node, position);
+      }
+      return;
+    }
+
+    // Get all siblings (including the dragged node)
+    const parentId = nodePosition.parentId;
+    const siblings = this.positioner.getChildren(parentId);
+    
+    if (siblings.length <= 1) {
+      // No siblings to reorder with - snap back to original
+      const position = this.positioner.getNodePosition(nodeId);
+      if (position) {
+        const node = this.konvaNodes.get(nodeId);
+        if (node) this.animateToPosition(node, position);
+      }
+      return;
+    }
+
+    // Find the closest sibling based on drop position
+    let closestSiblingId: string | null = null;
+    let insertIndex = -1;
+    let minDistance = Infinity;
+
+    siblings.forEach((siblingId, index) => {
+      if (siblingId === nodeId) return; // Skip the dragged node itself
+      
+      const siblingPosition = this.positioner.getNodePosition(siblingId);
+      if (!siblingPosition) return;
+      
+      // Calculate distance between drop position and sibling
+      const distance = Math.sqrt(
+        Math.pow(dropX - siblingPosition.x, 2) + 
+        Math.pow(dropY - siblingPosition.y, 2)
+      );
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestSiblingId = siblingId;
+        
+        // Determine if we should insert above or below this sibling
+        if (dropY < siblingPosition.y) {
+          insertIndex = index; // Insert above (before) this sibling
+        } else {
+          insertIndex = index + 1; // Insert below (after) this sibling
+        }
       }
     });
+
+    // If we found a valid drop target, reorder the siblings
+    if (closestSiblingId && insertIndex >= 0) {
+      this.reorderSiblings(parentId, nodeId, insertIndex);
+    } else {
+      // No valid drop target - snap back to original position
+      const position = this.positioner.getNodePosition(nodeId);
+      if (position) {
+        const node = this.konvaNodes.get(nodeId);
+        if (node) this.animateToPosition(node, position);
+      }
+    }
+  }
+
+  private reorderSiblings(parentId: string, nodeId: string, newIndex: number): void {
+    // Remove the node from its current position in the children array
+    this.positioner.removeFromChildrenMap(parentId, nodeId);
+    
+    // Get the updated siblings list (without the moved node)
+    const siblings = this.positioner.getChildren(parentId);
+    
+    // Insert the node at the new position
+    const adjustedIndex = Math.min(newIndex, siblings.length);
+    siblings.splice(adjustedIndex, 0, nodeId);
+    
+    // Update the children map with the new order
+    this.positioner.setChildrenArray(parentId, siblings);
+    
+    // Reposition all siblings to reflect the new order
+    this.repositionSiblings(parentId);
+    
+    // Update connections
+    this.updateConnectionsSimple(parentId);
   }
 
   private selectNode(nodeId: string): void {
