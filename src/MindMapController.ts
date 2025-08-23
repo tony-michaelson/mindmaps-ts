@@ -74,30 +74,63 @@ export class MindmapController {
       throw new Error("Root node must be created first");
     }
 
-    const nodeId = this.generateNodeId();
+    // Start a batch operation for the complete add node sequence
+    const batchId = this.batchManager.startBatch();
     
-    // Get parent (root) position to start new node there
-    const rootNode = this.konvaNodes.get(this.rootId);
-    const rootPosition = rootNode ? {
-      x: rootNode.getGroup().x() + LAYOUT_CONFIG.width / 2,
-      y: rootNode.getGroup().y() + LAYOUT_CONFIG.height / 2
-    } : { x: this.rootX, y: this.rootY };
+    try {
+      const nodeId = this.generateNodeId();
+      
+      // Add batch operation for node creation
+      this.batchManager.addOperation({
+        type: 'ADD_NODE',
+        nodeId,
+        data: { text, type, side, parentId: this.rootId }
+      });
+      
+      // Get parent (root) position to start new node there
+      const rootNode = this.konvaNodes.get(this.rootId);
+      const rootPosition = rootNode ? {
+        x: rootNode.getGroup().x() + LAYOUT_CONFIG.width / 2,
+        y: rootNode.getGroup().y() + LAYOUT_CONFIG.height / 2
+      } : { x: this.rootX, y: this.rootY };
 
-    // Create node at parent's position initially
-    const startPosition = this.positioner.calculateNodePosition(
-      nodeId,
-      this.rootId,
-      side,
-      rootPosition.x, // Start at parent's current position
-      rootPosition.y
-    );
+      // Create node at parent's position initially
+      const startPosition = this.positioner.calculateNodePosition(
+        nodeId,
+        this.rootId,
+        side,
+        rootPosition.x, // Start at parent's current position
+        rootPosition.y
+      );
 
-    this.createAndPositionNodeAtParent(nodeId, startPosition, text, type, this.rootId);
-    this.updateChildrenMap(this.rootId, nodeId);
-    this.repositionSiblings(this.rootId);
-    this.updateConnections(this.rootId);
+      this.createAndPositionNodeAtParent(nodeId, startPosition, text, type, this.rootId);
+      this.updateChildrenMap(this.rootId, nodeId);
+      
+      // Add batch operation for layout change
+      this.batchManager.addOperation({
+        type: 'LAYOUT_CHANGE',
+        data: { parentId: this.rootId, operation: 'reposition_siblings' }
+      });
+      
+      this.repositionSiblingsWithoutDraw(this.rootId);
+      
+      // Add batch operation for connection update
+      this.batchManager.addOperation({
+        type: 'UPDATE_CONNECTION',
+        data: { parentId: this.rootId }
+      });
+      
+      this.updateConnectionsWithoutDraw(this.rootId);
 
-    return nodeId;
+      // End the batch - this will trigger the handleBatchCommit
+      this.batchManager.endBatch();
+      
+      return nodeId;
+    } catch (error) {
+      // If error occurs, clear the batch without committing
+      this.batchManager.clearAllBatches();
+      throw error;
+    }
   }
 
   addNodeToExisting(parentId: string, text: string, type: NodeType): string {
@@ -106,30 +139,63 @@ export class MindmapController {
       throw new Error("Parent node not found");
     }
 
-    const nodeId = this.generateNodeId();
+    // Start a batch operation for the complete add node sequence
+    const batchId = this.batchManager.startBatch();
     
-    // Get parent position to start new node there
-    const parentNode = this.konvaNodes.get(parentId);
-    const parentPosition = parentNode ? {
-      x: parentNode.getGroup().x() + LAYOUT_CONFIG.width / 2,
-      y: parentNode.getGroup().y() + LAYOUT_CONFIG.height / 2
-    } : { x: this.rootX, y: this.rootY };
+    try {
+      const nodeId = this.generateNodeId();
+      
+      // Add batch operation for node creation
+      this.batchManager.addOperation({
+        type: 'ADD_NODE',
+        nodeId,
+        data: { text, type, parentId }
+      });
+      
+      // Get parent position to start new node there
+      const parentNode = this.konvaNodes.get(parentId);
+      const parentPosition = parentNode ? {
+        x: parentNode.getGroup().x() + LAYOUT_CONFIG.width / 2,
+        y: parentNode.getGroup().y() + LAYOUT_CONFIG.height / 2
+      } : { x: this.rootX, y: this.rootY };
 
-    // Create node at parent's position initially
-    const startPosition = this.positioner.calculateNodePosition(
-      nodeId,
-      parentId,
-      parentSide,
-      parentPosition.x, // Start at parent's current position
-      parentPosition.y
-    );
+      // Create node at parent's position initially
+      const startPosition = this.positioner.calculateNodePosition(
+        nodeId,
+        parentId,
+        parentSide,
+        parentPosition.x, // Start at parent's current position
+        parentPosition.y
+      );
 
-    this.createAndPositionNodeAtParent(nodeId, startPosition, text, type, parentId);
-    this.updateChildrenMap(parentId, nodeId);
-    this.repositionSiblings(parentId);
-    this.updateConnections(parentId);
+      this.createAndPositionNodeAtParent(nodeId, startPosition, text, type, parentId);
+      this.updateChildrenMap(parentId, nodeId);
+      
+      // Add batch operation for layout change
+      this.batchManager.addOperation({
+        type: 'LAYOUT_CHANGE',
+        data: { parentId, operation: 'reposition_siblings' }
+      });
+      
+      this.repositionSiblingsWithoutDraw(parentId);
+      
+      // Add batch operation for connection update
+      this.batchManager.addOperation({
+        type: 'UPDATE_CONNECTION',
+        data: { parentId }
+      });
+      
+      this.updateConnectionsWithoutDraw(parentId);
 
-    return nodeId;
+      // End the batch - this will trigger the handleBatchCommit
+      this.batchManager.endBatch();
+
+      return nodeId;
+    } catch (error) {
+      // If error occurs, clear the batch without committing
+      this.batchManager.clearAllBatches();
+      throw error;
+    }
   }
 
   private createAndPositionNode(
@@ -255,6 +321,103 @@ export class MindmapController {
           }
         }
       }
+    });
+  }
+
+  private repositionSiblingsWithoutDraw(parentId: string): void {
+    const updatedPositions = this.positioner.repositionSiblings(
+      parentId,
+      this.rootX,
+      this.rootY
+    );
+
+    // Get current viewport for culling
+    const viewport = this.viewportCuller.getViewportInfo();
+
+    updatedPositions.forEach((position) => {
+      const nodeId = this.findNodeIdByPosition(position);
+      if (nodeId) {
+        const konvaNode = this.konvaNodes.get(nodeId);
+        if (konvaNode) {
+          // Check if node will be visible at target position
+          if (this.viewportCuller.isNodeVisible(
+            position.x, position.y, 
+            LAYOUT_CONFIG.width, LAYOUT_CONFIG.height, 
+            viewport
+          )) {
+            this.animateToPosition(konvaNode, position);
+          } else {
+            // For off-screen nodes, just set position without animation
+            this.setPositionWithoutAnimation(konvaNode, position);
+          }
+        }
+      }
+    });
+  }
+
+  private updateConnectionsWithoutDraw(parentId: string): void {
+    const children = this.positioner.getChildren(parentId);
+    const parentNode = this.konvaNodes.get(parentId);
+
+    if (!parentNode) return;
+
+    // Get current viewport for culling
+    const viewport = this.viewportCuller.getViewportInfo();
+
+    children.forEach((childId) => {
+      const childNode = this.konvaNodes.get(childId);
+      if (!childNode) return;
+
+      const connectionId = `${parentId}-${childId}`;
+
+      // Remove old connection
+      const oldConnection = this.connections.get(connectionId);
+      if (oldConnection) {
+        oldConnection.destroy();
+      }
+
+      // Get current visual positions from Konva groups (not target positions)
+      const parentGroup = parentNode.getGroup();
+      const childGroup = childNode.getGroup();
+      
+      const parentRect = parentGroup.children![0] as Konva.Rect;
+      const childRect = childGroup.children![0] as Konva.Rect;
+      
+      const parentPos = {
+        x: parentGroup.x() + parentRect.width() / 2,
+        y: parentGroup.y() + parentRect.height() / 2,
+        level: 0,
+        stackIndex: 0,
+        side: "right" as const
+      };
+      
+      const childPos = {
+        x: childGroup.x() + childRect.width() / 2,
+        y: childGroup.y() + childRect.height() / 2,
+        level: 0,
+        stackIndex: 0,
+        side: "right" as const
+      };
+
+      // Skip connection if not visible in viewport
+      if (!this.viewportCuller.isConnectionVisible(
+        parentPos.x, parentPos.y, parentRect.width(), parentRect.height(),
+        childPos.x, childPos.y, childRect.width(), childRect.height(),
+        viewport
+      )) {
+        return; // Skip creating off-screen connections
+      }
+
+      // Create new connection with current visual positions
+      const newConnection = this.createConnectionLine(
+        parentPos,
+        childPos,
+        parentId,
+        childId
+      );
+      this.connections.set(connectionId, newConnection);
+      this.layer.add(newConnection);
+      newConnection.moveToBottom();
     });
   }
 
@@ -577,6 +740,7 @@ export class MindmapController {
     // Process batched operations for optimal performance
     let needsLayoutRecalculation = false;
     let needsConnectionUpdate = false;
+    let needsSingleDraw = false;
     
     for (const op of operations) {
       switch (op.type) {
@@ -584,16 +748,20 @@ export class MindmapController {
         case 'REMOVE_NODE':
           needsLayoutRecalculation = true;
           needsConnectionUpdate = true;
+          needsSingleDraw = true;
           break;
         case 'MOVE_NODE':
           needsConnectionUpdate = true;
+          needsSingleDraw = true;
           break;
         case 'LAYOUT_CHANGE':
           needsLayoutRecalculation = true;
           needsConnectionUpdate = true;
+          needsSingleDraw = true;
           break;
         case 'UPDATE_CONNECTION':
           needsConnectionUpdate = true;
+          needsSingleDraw = true;
           break;
       }
     }
@@ -607,8 +775,11 @@ export class MindmapController {
     if (needsConnectionUpdate) {
       // Clear connection cache when positions change
       PerformanceUtils.clearConnectionCache();
-      // Defer connection updates to next frame for better performance
-      this.drawManager.scheduleDrawNextFrame(this.layer);
+    }
+    
+    // Single draw call for the entire batch
+    if (needsSingleDraw) {
+      this.layer.draw();
     }
   }
   
