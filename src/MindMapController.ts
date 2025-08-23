@@ -552,7 +552,15 @@ export class MindmapController {
       this.konvaNodes.delete(nodeId);
     }
 
-    // Remove connections
+    // Clear selection if the deleted node was selected
+    if (this.selectedNodeId === nodeId) {
+      this.selectedNodeId = null;
+      if (this.onNodeSelected) {
+        this.onNodeSelected(null);
+      }
+    }
+
+    // Remove connections from this node to its children
     const children = this.positioner.getChildren(nodeId);
     children.forEach((childId) => {
       const connectionId = `${nodeId}-${childId}`;
@@ -563,8 +571,31 @@ export class MindmapController {
       }
     });
 
+    // Remove connection from parent to this node
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    if (nodePosition && nodePosition.parentId) {
+      const parentConnectionId = `${nodePosition.parentId}-${nodeId}`;
+      const parentConnection = this.connections.get(parentConnectionId);
+      if (parentConnection) {
+        parentConnection.destroy();
+        this.connections.delete(parentConnectionId);
+      }
+    }
+
+    // Remove from parent's children map first
+    if (nodePosition && nodePosition.parentId) {
+      this.positioner.removeFromChildrenMap(nodePosition.parentId, nodeId);
+    }
+    
     // Remove from positioner and clear caches
     this.positioner.removeNode(nodeId);
+    
+    // Reposition remaining siblings to fill the gap
+    if (nodePosition && nodePosition.parentId) {
+      this.repositionSiblings(nodePosition.parentId);
+      // Update connections for the parent after repositioning
+      this.updateConnectionsSimple(nodePosition.parentId);
+    }
     
     // Add removal operation to batch if in batch mode
     if (this.batchProcessor.isInBatchMode()) {

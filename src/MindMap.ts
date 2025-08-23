@@ -115,9 +115,18 @@ export class MindMap {
   }
 
   private deleteSelectedNode(): void {
-    // Implementation for deleting selected node
-    // This would need to track which node is currently selected
-    console.log("Delete functionality not yet implemented");
+    const selectedNodeId = this.controller.getSelectedNodeId();
+    const rootId = this.controller.getRootId();
+    
+    // Don't allow deleting the root node
+    if (!selectedNodeId || selectedNodeId === rootId) {
+      console.log("Cannot delete root node or no node selected");
+      return;
+    }
+    
+    // Remove the selected node
+    this.controller.removeNode(selectedNodeId);
+    console.log(`Deleted node: ${selectedNodeId}`);
   }
 
   private getNodeText(): string {
