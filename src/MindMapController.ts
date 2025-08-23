@@ -912,19 +912,33 @@ export class MindmapController {
   }
 
   private updateSingleNodeConnection(nodeId: string): void {
-    // Only update connections where this node is involved during drag
+    // Update connection FROM parent TO this node (if it has a parent)
     const nodePosition = this.positioner.getNodePosition(nodeId);
-    if (!nodePosition || !nodePosition.parentId) return;
-    
-    const connectionId = `${nodePosition.parentId}-${nodeId}`;
-    const oldConnection = this.connections.get(connectionId);
-    
-    if (oldConnection) {
-      // Remove old connection and create new one with current visual positions
-      oldConnection.destroy();
-      this.createConnectionFromVisualPositions(nodePosition.parentId, nodeId);
-      this.layer.draw();
+    if (nodePosition && nodePosition.parentId) {
+      const connectionId = `${nodePosition.parentId}-${nodeId}`;
+      const oldConnection = this.connections.get(connectionId);
+      
+      if (oldConnection) {
+        // Remove old connection and create new one with current visual positions
+        oldConnection.destroy();
+        this.createConnectionFromVisualPositions(nodePosition.parentId, nodeId);
+      }
     }
+    
+    // Update connections FROM this node TO its children
+    const children = this.positioner.getChildren(nodeId);
+    children.forEach(childId => {
+      const connectionId = `${nodeId}-${childId}`;
+      const oldConnection = this.connections.get(connectionId);
+      
+      if (oldConnection) {
+        // Remove old connection and create new one with current visual positions
+        oldConnection.destroy();
+        this.createConnectionFromVisualPositions(nodeId, childId);
+      }
+    });
+    
+    this.layer.draw();
   }
 
   private updateDropTargetHighlightingOptimized(draggedNodeId: string, dragX: number, dragY: number): void {
