@@ -546,6 +546,30 @@ export class MindmapController {
   }
 
   public removeNode(nodeId: string): void {
+    // Store parent info before recursive deletion for repositioning
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    const parentId = nodePosition?.parentId;
+    
+    // Recursively remove this node and all its descendants
+    this.removeNodeRecursive(nodeId);
+    
+    // Reposition remaining siblings to fill the gap (only for top-level deletion)
+    if (parentId) {
+      this.repositionSiblings(parentId);
+      // Update connections for the parent after repositioning
+      this.updateConnectionsSimple(parentId);
+    }
+    
+    this.scheduleDraw();
+  }
+
+  private removeNodeRecursive(nodeId: string): void {
+    // Recursively remove all children first - create a copy to avoid issues with list modification during iteration
+    const children = [...this.positioner.getChildren(nodeId)];
+    children.forEach((childId) => {
+      this.removeNodeRecursive(childId); // Recursive call to remove child and its descendants
+    });
+
     const node = this.konvaNodes.get(nodeId);
     if (node) {
       node.remove();
@@ -560,9 +584,9 @@ export class MindmapController {
       }
     }
 
-    // Remove connections from this node to its children
-    const children = this.positioner.getChildren(nodeId);
-    children.forEach((childId) => {
+    // Remove connections from this node to its children (should be empty now after recursive deletion)
+    const remainingChildren = this.positioner.getChildren(nodeId);
+    remainingChildren.forEach((childId) => {
       const connectionId = `${nodeId}-${childId}`;
       const connection = this.connections.get(connectionId);
       if (connection) {
@@ -580,32 +604,21 @@ export class MindmapController {
         parentConnection.destroy();
         this.connections.delete(parentConnectionId);
       }
-    }
 
-    // Remove from parent's children map first
-    if (nodePosition && nodePosition.parentId) {
+      // Remove from parent's children map
       this.positioner.removeFromChildrenMap(nodePosition.parentId, nodeId);
     }
     
     // Remove from positioner and clear caches
     this.positioner.removeNode(nodeId);
     
-    // Reposition remaining siblings to fill the gap
-    if (nodePosition && nodePosition.parentId) {
-      this.repositionSiblings(nodePosition.parentId);
-      // Update connections for the parent after repositioning
-      this.updateConnectionsSimple(nodePosition.parentId);
-    }
-    
     // Add removal operation to batch if in batch mode
     if (this.batchProcessor.isInBatchMode()) {
       this.batchProcessor.addOperation({
         type: 'nodeRemove',
         nodeId,
-        data: { childrenIds: children.map(id => id) }
+        data: { childrenIds: [] } // Children already processed recursively
       });
     }
-    
-    this.scheduleDraw();
   }
 }
