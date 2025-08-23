@@ -96,15 +96,16 @@ export class TreeLayoutCalculator {
     if (subtrees.length === 0) return [];
 
     // Calculate horizontal spacing based on the widest sibling node
-    const maxChildWidth = Math.max(...subtrees.map(subtree => subtree.width));
+    const maxChildWidth = Math.max(...subtrees.map((subtree) => subtree.width));
     const horizontalSpacing = Math.max(
-      LAYOUT_CONFIG.horizontalSpacing, 
+      LAYOUT_CONFIG.horizontalSpacing,
       maxChildWidth * 0.3 + LAYOUT_CONFIG.horizontalSpacing
     );
     // For left side, position children to the left of parent
-    const horizontal = side === "left" ? 
-      -(horizontalSpacing + maxChildWidth) : 
-      parentWidth + horizontalSpacing;
+    const horizontal =
+      side === "left"
+        ? -(horizontalSpacing + parentWidth)
+        : parentWidth + horizontalSpacing;
     const positioned: SubtreeLayout[] = [];
 
     if (subtrees.length === 1) {
@@ -263,10 +264,12 @@ export class TreeLayoutCalculator {
         0, // Calculate from origin first
         rootY - LAYOUT_CONFIG.height / 2
       ).filter((r) => r.nodeId !== "left-container");
-      
+
       // Find the rightmost position of any left-side node (this will be our alignment axis)
-      const maxRightEdge = Math.max(...tempLeftResults.map(r => r.x + r.width));
-      
+      const maxRightEdge = Math.max(
+        ...tempLeftResults.map((r) => r.x + r.width)
+      );
+
       // Position all left nodes so their right edges align at the calculated distance from root
       const leftResults = tempLeftResults.map((result) => ({
         ...result,
