@@ -47,8 +47,8 @@ export const NODE_CONFIGS: Record<NodeType, NodeConfig> = {
 export const LAYOUT_CONFIG = {
   width: 120,
   height: 40,
-  horizontalSpacing: 8.75, // Reduced by 50% (17.5 * 0.5 = 8.75)
-  verticalSpacing: 15, // 15 pixels between node borders
+  horizontalSpacing: 20,
+  verticalSpacing: 15,
   maxTextLength: 25,
-  maxNodeTextLength: 120, // Maximum characters for dynamic text expansion
+  maxNodeTextLength: 120,
 };
