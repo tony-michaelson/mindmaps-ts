@@ -742,6 +742,10 @@ export class MindmapController {
     const newParentSide = this.positioner.getNodeSide(newParentId);
     this.updateNodeAndDescendantsSides(nodeId, newParentSide || "right");
 
+    // Create a temporary connection immediately so it's visible during animation
+    // This will be replaced with the correct position after animations complete
+    this.createConnectionFromVisualPositions(newParentId, nodeId);
+
     // Trigger a full layout recalculation from the root
     // This will properly position the reparented node and all its descendants
     const updatedPositions = this.positioner.repositionSiblings(
