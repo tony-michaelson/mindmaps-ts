@@ -47,10 +47,10 @@ export class HierarchicalPositioner {
 
     this.nodeSides.set(nodeId, nodeSide);
 
-    // Create temporary position - will be recalculated with outline-based layout
+    // Create temporary position starting at parent node - will be recalculated with outline-based layout
     const position: NodePosition = {
-      x: rootX, // Will be updated by outline calculation
-      y: rootY, // Will be updated by outline calculation
+      x: parentPos.x, // Start at parent position, will be updated by outline calculation
+      y: parentPos.y, // Start at parent position, will be updated by outline calculation
       level: parentPos.level + 1,
       parentId,
       stackIndex,
