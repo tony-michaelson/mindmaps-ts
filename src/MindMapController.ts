@@ -1555,9 +1555,40 @@ export class MindmapController {
     }
   }
 
+  private sizeChangeTimeouts: Map<string, NodeJS.Timeout> = new Map();
+
   private handleNodeSizeChange(nodeId: string): void {
-    // Update connections in real-time as the node size changes
+    // Update connections immediately for visual feedback
     this.updateSingleNodeConnectionImmediate(nodeId);
+    
+    // Debounce sibling repositioning to avoid rapid layout changes during editing
+    const existingTimeout = this.sizeChangeTimeouts.get(nodeId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+    
+    const timeout = setTimeout(() => {
+      const nodePosition = this.positioner.getNodePosition(nodeId);
+      if (nodePosition && nodePosition.parentId) {
+        // Update the positioner with the node's current dimensions
+        const node = this.konvaNodes.get(nodeId);
+        if (node) {
+          const group = node.getGroup();
+          const rect = group.findOne('Rect') as Konva.Rect;
+          if (rect) {
+            this.positioner.updateNodeDimensions(nodeId, rect.width(), rect.height());
+          }
+        }
+        
+        // Reposition siblings to prevent overlaps
+        this.repositionSiblings(nodePosition.parentId);
+        this.updateConnectionsSimple(nodePosition.parentId);
+      }
+      
+      this.sizeChangeTimeouts.delete(nodeId);
+    }, 150); // Longer delay for size changes during editing
+    
+    this.sizeChangeTimeouts.set(nodeId, timeout);
   }
 
   private updateSingleNodeConnectionImmediate(nodeId: string): void {
