@@ -103,7 +103,7 @@ export class MindmapController {
         this.rootY
       );
 
-      this.createAndPositionNode(nodeId, position, text, type);
+      this.createAndPositionNode(nodeId, position, text, type, text === "");
       this.nodeData.set(nodeId, data);
       this.updateChildrenMap(this.rootId!, nodeId);
 
@@ -137,7 +137,7 @@ export class MindmapController {
         this.rootY
       );
 
-      this.createAndPositionNode(nodeId, position, text, type);
+      this.createAndPositionNode(nodeId, position, text, type, text === "");
       this.nodeData.set(nodeId, data);
       this.updateChildrenMap(parentId, nodeId);
 
@@ -159,7 +159,8 @@ export class MindmapController {
     nodeId: string,
     position: NodePosition,
     text: string,
-    type: NodeType
+    type: NodeType,
+    isNewNode: boolean = false
   ): void {
     const config = NODE_CONFIGS[type];
     const truncatedText = this.formatNodeText(text);
@@ -179,6 +180,7 @@ export class MindmapController {
         this.onNodeRightClick?.(nodeId, x, y),
       onLinkClick: type === NodeType.LINK ? () => this.onLinkClick?.(nodeId) : undefined,
       isLinkNode: type === NodeType.LINK,
+      isNewNode: isNewNode,
     });
 
     this.konvaNodes.set(nodeId, node);

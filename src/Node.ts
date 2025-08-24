@@ -20,6 +20,7 @@ export class Node {
   private onRightClick?: (x: number, y: number) => void;
   private onLinkClick?: () => void;
   private isLinkNode: boolean = false;
+  private isNewNode: boolean = false;
   private textArea?: HTMLTextAreaElement;
 
   private static readonly defaultStyles = {
@@ -40,6 +41,7 @@ export class Node {
     onRightClick?: (x: number, y: number) => void;
     onLinkClick?: () => void;
     isLinkNode?: boolean;
+    isNewNode?: boolean;
   }) {
     const {
       x,
@@ -54,6 +56,7 @@ export class Node {
       onRightClick,
       onLinkClick,
       isLinkNode = false,
+      isNewNode = false,
     } = params;
     this.onTextChange = onTextChange;
     this.onSizeChange = onSizeChange;
@@ -61,6 +64,7 @@ export class Node {
     this.onRightClick = onRightClick;
     this.onLinkClick = onLinkClick;
     this.isLinkNode = isLinkNode;
+    this.isNewNode = isNewNode;
 
     this.currentText = text.replace(/\n/g, " ");
 
@@ -289,9 +293,13 @@ export class Node {
 
   private setupTextEditing(): void {
     if (this.currentText === "" || this.currentText === "New Node") {
-      requestAnimationFrame(() => {
-        this.startEditing();
-      });
+      if (this.isNewNode) {
+        this.setupKeyCapture();
+      } else {
+        requestAnimationFrame(() => {
+          this.startEditing();
+        });
+      }
     }
 
     this.group.on("dblclick", () => {
@@ -485,6 +493,52 @@ export class Node {
 
   public isCurrentlyEditing(): boolean {
     return this.isEditing;
+  }
+
+  private setupKeyCapture(): void {
+    this.isEditing = true;
+    this.rectElement.stroke("#00FF88");
+    this.rectElement.strokeWidth(2);
+    this.layer.draw();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.key === "Enter") {
+        this.finishKeyCapture();
+        document.removeEventListener("keydown", handleKeyDown);
+      } else if (e.key === "Escape") {
+        this.cancelKeyCapture();
+        document.removeEventListener("keydown", handleKeyDown);
+      } else if (e.key === "Backspace") {
+        this.currentText = this.currentText.slice(0, -1);
+        this.updateDisplayText();
+      } else if (e.key.length === 1) {
+        this.currentText += e.key;
+        this.updateDisplayText();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+  }
+
+  private finishKeyCapture(): void {
+    this.isEditing = false;
+    this.updateVisualStateOnly();
+    this.layer.draw();
+
+    if (this.onTextChange) {
+      this.onTextChange(this.currentText);
+    }
+  }
+
+  private cancelKeyCapture(): void {
+    this.isEditing = false;
+    this.currentText = "";
+    this.updateDisplayText();
+    this.updateVisualStateOnly();
+    this.layer.draw();
   }
 
   public getText(): string {
