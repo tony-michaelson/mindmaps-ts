@@ -124,6 +124,7 @@ export class MindMap {
           break;
         case "Enter":
           e.preventDefault();
+          console.log('Keyboard Enter: calling addSiblingToSelected');
           this.addSiblingToSelected("");
           break;
         case "Tab":
@@ -403,13 +404,14 @@ export class MindMap {
     this.contextMenu.show({ x, y }, context);
   }
 
-  private handleMenuAction: MenuActionHandler = (
+  private handleMenuAction: MenuActionHandler = async (
     action: string,
     nodeId: string,
     data?: Record<string, unknown>
   ) => {
     switch (action) {
       case "edit": {
+        console.log('Menu edit action: calling startEditing');
         const node = this.controller.getKonvaNode(nodeId);
         if (node) {
           node.startEditing();
@@ -428,22 +430,18 @@ export class MindMap {
         }
         break;
 
-      case "add-child":
-        this.addChildToNode(nodeId);
+      case "add-child": {
+        console.log('Right-click Add Child: calling addChildToSelected');
+        this.controller.selectNode(nodeId);
+        await this.addChildToSelected("");
         break;
+      }
 
       case "add-sibling": {
-        const parentId = this.controller.getParentId(nodeId);
-        if (parentId) {
-          this.addChildToNode(parentId);
-        } else {
-          const rootChildren = this.controller.getRootChildren();
-          const nodeChild = rootChildren.find(
-            (child) => child.nodeId === nodeId
-          );
-          const side = nodeChild?.side || "right";
-          this.addRootChild("", undefined, side);
-        }
+        console.log('Right-click Add Sibling: calling addSiblingToSelected');
+        const originalSelectedId = this.selectedNodeId;
+        this.controller.selectNode(nodeId);
+        await this.addSiblingToSelected("");
         break;
       }
 

@@ -401,14 +401,14 @@ export class Node {
   }
 
   private setupTextEditing(): void {
+    console.log('setupTextEditing called:', { 
+      currentText: this.currentText, 
+      isNewNode: this.isNewNode,
+      nodeType: this.nodeType 
+    });
     if (this.currentText === "" || this.currentText === "New Node") {
-      if (this.isNewNode) {
-        this.setupKeyCapture();
-      } else {
-        requestAnimationFrame(() => {
-          this.startEditing();
-        });
-      }
+      console.log('Starting setupKeyCapture for empty node');
+      this.setupKeyCapture();
     }
 
     this.group.on("dblclick", () => {
@@ -419,6 +419,7 @@ export class Node {
       if (this.isLinkNode && this.onLinkClick) {
         this.onLinkClick();
       } else {
+        console.log('Tab/double-click triggered startEditing');
         this.startEditing();
       }
     });
@@ -432,6 +433,7 @@ export class Node {
   }
 
   public startEditing(): void {
+    console.log('startEditing called - starting textarea mode');
     if (this.isEditing) return;
 
     this.isEditing = true;
@@ -605,6 +607,7 @@ export class Node {
   }
 
   private setupKeyCapture(): void {
+    console.log('setupKeyCapture called - starting key capture mode');
     this.isEditing = true;
     this.rectElement.stroke("#00FF88");
     this.rectElement.strokeWidth(2);

@@ -26,7 +26,7 @@ export type MenuActionHandler = (
   action: string,
   nodeId: string,
   data?: Record<string, unknown>
-) => void;
+) => void | Promise<void>;
 
 export class ContextMenu {
   private element: HTMLDivElement;
