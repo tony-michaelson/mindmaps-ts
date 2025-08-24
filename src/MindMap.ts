@@ -114,6 +114,10 @@ export class MindMap {
           break;
         case "Enter":
           e.preventDefault();
+          this.addSiblingToSelected("", NodeType.TASK);
+          break;
+        case "Tab":
+          e.preventDefault();
           this.addChildToSelected("", NodeType.TASK);
           break;
         case "Delete":
@@ -154,6 +158,35 @@ export class MindMap {
         console.error("Failed to add child to selected node:", error);
         // Fallback to adding to root
         await this.addRootChild(text, type);
+      }
+    } else {
+      // No node selected, add to root
+      await this.addRootChild(text, type);
+    }
+  }
+
+  private async addSiblingToSelected(text: string = "", type: NodeType = NodeType.TASK): Promise<void> {
+    if (this.selectedNodeId) {
+      // Find the parent of the selected node to add a sibling
+      const parentId = this.controller.getParentId(this.selectedNodeId);
+      
+      if (parentId) {
+        // Add sibling by adding to the parent
+        try {
+          const nodeId = this.controller.addNodeToExisting(parentId, text, type);
+          this.layer.draw();
+          await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
+        } catch (error) {
+          console.error("Failed to add sibling to selected node:", error);
+          // Fallback to adding to root
+          await this.addRootChild(text, type);
+        }
+      } else {
+        // Selected node is root or has no parent, add to root side
+        const rootChildren = this.controller.getRootChildren();
+        const selectedChild = rootChildren.find(child => child.nodeId === this.selectedNodeId);
+        const side = selectedChild?.side || "right";
+        await this.addRootChild(text, type, side);
       }
     } else {
       // No node selected, add to root

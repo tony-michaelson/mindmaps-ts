@@ -1000,6 +1000,11 @@ export class MindmapController {
     return this.selectedNodeId;
   }
 
+  public getParentId(nodeId: string): string | null {
+    const position = this.positioner.getNodePosition(nodeId);
+    return position?.parentId || null;
+  }
+
   // Move a root child to the opposite side
   public moveRootChildToOppositeSide(nodeId: string, dropX?: number, dropY?: number): void {
     const nodePosition = this.positioner.getNodePosition(nodeId);
