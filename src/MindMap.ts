@@ -2,6 +2,18 @@ import Konva from "konva";
 import { MindmapController } from "./MindMapController";
 import { NodeType } from "./NodePosition";
 
+export enum ActionType {
+  NODE_ADD = "Node::Add",
+  NODE_DELETE = "Node::Delete", 
+  NODE_TITLE_CHANGE = "Node::TitleChange",
+  NODE_MOVE = "Node::Move",
+  NODE_CLICK = "Node::Click",
+  NODE_DOUBLE_CLICK = "Node::DblClick",
+  NODE_RIGHT_CLICK = "Node::RightClick"
+}
+
+export type CallbackFunction = (nodeData: string) => void | Promise<void>;
+
 export class MindMap {
   private stage: Konva.Stage;
   private layer: Konva.Layer;
@@ -9,6 +21,7 @@ export class MindMap {
   private centerX: number;
   private centerY: number;
   private selectedNodeId: string | null = null;
+  private callbacks: Map<ActionType, CallbackFunction[]> = new Map();
 
   constructor(containerId: string, width: number, height: number) {
     this.stage = new Konva.Stage({
@@ -32,8 +45,26 @@ export class MindMap {
     );
 
     // Set up selection callback
-    this.controller.onNodeSelected = (nodeId: string | null) => {
+    this.controller.onNodeSelected = async (nodeId: string | null) => {
       this.selectedNodeId = nodeId;
+      if (nodeId) {
+        await this.triggerCallbacks(ActionType.NODE_CLICK, nodeId);
+      }
+    };
+
+    // Set up text change callback
+    this.controller.onNodeTextChange = async (nodeId: string, newText: string) => {
+      await this.triggerCallbacks(ActionType.NODE_TITLE_CHANGE, nodeId);
+    };
+
+    // Set up double-click callback
+    this.controller.onNodeDoubleClick = async (nodeId: string) => {
+      await this.triggerCallbacks(ActionType.NODE_DOUBLE_CLICK, nodeId);
+    };
+
+    // Set up right-click callback
+    this.controller.onNodeRightClick = async (nodeId: string) => {
+      await this.triggerCallbacks(ActionType.NODE_RIGHT_CLICK, nodeId);
     };
 
     this.initEvents();
@@ -91,36 +122,38 @@ export class MindMap {
     this.layer.draw();
   }
 
-  private addNodeToSide(side: "left" | "right"): void {
+  private async addNodeToSide(side: "left" | "right"): Promise<void> {
     const nodeText = ""; // Start with empty text for immediate editing
     const nodeType = this.getRandomNodeType();
 
     try {
-      this.controller.addNodeToRoot(nodeText, nodeType, side);
+      const nodeId = this.controller.addNodeToRoot(nodeText, nodeType, side);
       this.layer.draw();
+      await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
     } catch (error) {
       console.error("Failed to add node:", error);
     }
   }
 
-  private addChildToSelected(text: string = "", type: NodeType = NodeType.TASK): void {
+  private async addChildToSelected(text: string = "", type: NodeType = NodeType.TASK): Promise<void> {
     if (this.selectedNodeId) {
       // Add child to the selected node
       try {
-        this.controller.addNodeToExisting(this.selectedNodeId, text, type);
+        const nodeId = this.controller.addNodeToExisting(this.selectedNodeId, text, type);
         this.layer.draw();
+        await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
       } catch (error) {
         console.error("Failed to add child to selected node:", error);
         // Fallback to adding to root
-        this.addRootChild(text, type);
+        await this.addRootChild(text, type);
       }
     } else {
       // No node selected, add to root
-      this.addRootChild(text, type);
+      await this.addRootChild(text, type);
     }
   }
 
-  private deleteSelectedNode(): void {
+  private async deleteSelectedNode(): Promise<void> {
     const selectedNodeId = this.controller.getSelectedNodeId();
     const rootId = this.controller.getRootId();
     
@@ -130,33 +163,14 @@ export class MindMap {
       return;
     }
     
+    // Trigger callback before removing the node
+    await this.triggerCallbacks(ActionType.NODE_DELETE, selectedNodeId);
+    
     // Remove the selected node
     this.controller.removeNode(selectedNodeId);
     console.log(`Deleted node: ${selectedNodeId}`);
   }
 
-  private getNodeText(): string {
-    // For demo purposes, generate random text
-    const topics = [
-      "Research",
-      "Design",
-      "Development",
-      "Testing",
-      "Deployment",
-      "Planning",
-      "Analysis",
-      "Implementation",
-      "Review",
-      "Documentation",
-      "Marketing",
-      "Sales",
-      "Support",
-      "Training",
-      "Maintenance",
-    ];
-
-    return topics[Math.floor(Math.random() * topics.length)];
-  }
 
   private getRandomNodeType(): NodeType {
     const types = [
@@ -177,29 +191,35 @@ export class MindMap {
     return this.controller.createRootNode(text);
   }
 
-  public addChildToNode(
+  public async addChildToNode(
     parentId: string,
     text: string = "",
     type: NodeType = NodeType.TASK
-  ): string {
-    return this.controller.addNodeToExisting(parentId, text, type);
+  ): Promise<string> {
+    const nodeId = this.controller.addNodeToExisting(parentId, text, type);
+    await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
+    return nodeId;
   }
 
-  public addRootChild(
+  public async addRootChild(
     text: string = "",
     type: NodeType = NodeType.TASK,
     side: "left" | "right" = "right"
-  ): string {
-    return this.controller.addNodeToRoot(text, type, side);
+  ): Promise<string> {
+    const nodeId = this.controller.addNodeToRoot(text, type, side);
+    await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
+    return nodeId;
   }
 
-  public removeNode(nodeId: string): void {
+  public async removeNode(nodeId: string): Promise<void> {
+    await this.triggerCallbacks(ActionType.NODE_DELETE, nodeId);
     this.controller.removeNode(nodeId);
   }
 
-  public moveRootChildToOppositeSide(nodeId: string): void {
+  public async moveRootChildToOppositeSide(nodeId: string): Promise<void> {
     this.controller.moveRootChildToOppositeSide(nodeId);
     this.layer.draw();
+    await this.triggerCallbacks(ActionType.NODE_MOVE, nodeId);
   }
 
   public getNodeCount(): number {
@@ -234,6 +254,64 @@ export class MindMap {
 
   public getController(): MindmapController {
     return this.controller;
+  }
+
+  public registerCallback(actionType: ActionType, callback: CallbackFunction): void {
+    if (!this.callbacks.has(actionType)) {
+      this.callbacks.set(actionType, []);
+    }
+    this.callbacks.get(actionType)!.push(callback);
+  }
+
+  public unregisterCallback(actionType: ActionType, callback: CallbackFunction): void {
+    const callbacks = this.callbacks.get(actionType);
+    if (callbacks) {
+      const index = callbacks.indexOf(callback);
+      if (index > -1) {
+        callbacks.splice(index, 1);
+      }
+    }
+  }
+
+  private async triggerCallbacks(actionType: ActionType, nodeId: string): Promise<void> {
+    const callbacks = this.callbacks.get(actionType);
+    if (!callbacks || callbacks.length === 0) return;
+
+    const nodeData = this.getNodeDataAsJson(nodeId);
+    const promises = callbacks.map(callback => {
+      try {
+        const result = callback(nodeData);
+        return Promise.resolve(result);
+      } catch (error) {
+        console.error(`Callback error for ${actionType}:`, error);
+        return Promise.resolve();
+      }
+    });
+
+    await Promise.all(promises);
+  }
+
+  private getNodeDataAsJson(nodeId: string): string {
+    const treeStructure = this.controller.getTreeStructure();
+    const nodeData = this.findNodeInTree(treeStructure, nodeId);
+    return JSON.stringify(nodeData, null, 2);
+  }
+
+  private findNodeInTree(node: any, targetId: string): any {
+    if (node.id === targetId) {
+      return node;
+    }
+    
+    if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) {
+        const found = this.findNodeInTree(child, targetId);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    
+    return null;
   }
 
   public exportToJson(): string {

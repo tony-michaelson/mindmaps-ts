@@ -17,6 +17,8 @@ export class Node {
   private rectElement: Konva.Rect;
   private onTextChange?: (newText: string) => void;
   private onSizeChange?: () => void;
+  private onDoubleClick?: () => void;
+  private onRightClick?: () => void;
 
   // Default styles from layout.js
   private static readonly defaultStyles = {
@@ -33,10 +35,14 @@ export class Node {
     customColor?: string;
     onTextChange?: (newText: string) => void;
     onSizeChange?: () => void;
+    onDoubleClick?: () => void;
+    onRightClick?: () => void;
   }) {
-    const { x, y, text, isRoot = false, layer, customColor, onTextChange, onSizeChange } = params;
+    const { x, y, text, isRoot = false, layer, customColor, onTextChange, onSizeChange, onDoubleClick, onRightClick } = params;
     this.onTextChange = onTextChange;
     this.onSizeChange = onSizeChange;
+    this.onDoubleClick = onDoubleClick;
+    this.onRightClick = onRightClick;
     this.currentText = text;
 
     this.layer = layer;
@@ -274,7 +280,18 @@ export class Node {
     
     // Set up double-click to edit
     this.group.on('dblclick', () => {
+      if (this.onDoubleClick) {
+        this.onDoubleClick();
+      }
       this.startEditing();
+    });
+
+    // Set up right-click callback
+    this.group.on('contextmenu', (e) => {
+      e.evt.preventDefault();
+      if (this.onRightClick) {
+        this.onRightClick();
+      }
     });
   }
 

@@ -30,6 +30,9 @@ export class MindmapController {
   private lastDropTargetId: string | null = null;
   private isDragInProgress = false;
   public onNodeSelected?: (nodeId: string | null) => void;
+  public onNodeTextChange?: (nodeId: string, newText: string) => void;
+  public onNodeDoubleClick?: (nodeId: string) => void;
+  public onNodeRightClick?: (nodeId: string) => void;
 
   constructor(layer: Konva.Layer, rootX: number, rootY: number) {
     this.layer = layer;
@@ -153,6 +156,8 @@ export class MindmapController {
       customColor: config.color,
       onTextChange: (newText: string) => this.handleNodeTextChange(nodeId, newText),
       onSizeChange: () => this.handleNodeSizeChange(nodeId),
+      onDoubleClick: () => this.onNodeDoubleClick?.(nodeId),
+      onRightClick: () => this.onNodeRightClick?.(nodeId),
     });
 
     this.konvaNodes.set(nodeId, node);
@@ -1511,6 +1516,11 @@ export class MindmapController {
     // Update the node's text and trigger a layout update if the text size changed significantly
     const node = this.konvaNodes.get(nodeId);
     if (!node) return;
+
+    // Notify the MindMap about the text change
+    if (this.onNodeTextChange) {
+      this.onNodeTextChange(nodeId, newText);
+    }
 
     // Get the parent to trigger repositioning of siblings if needed
     const nodePosition = this.positioner.getNodePosition(nodeId);
