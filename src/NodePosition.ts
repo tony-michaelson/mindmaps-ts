@@ -48,7 +48,7 @@ export const LAYOUT_CONFIG = {
   width: 120,
   height: 40,
   horizontalSpacing: 20,
-  verticalSpacing: 15,
+  verticalSpacing: 20,
   maxTextLength: 25,
   maxNodeTextLength: 120,
 };

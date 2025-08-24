@@ -806,6 +806,9 @@ export class MindmapController {
     // Update the node's side to match the new parent's side
     const newParentSide = this.positioner.getNodeSide(newParentId);
     this.updateNodeAndDescendantsSides(nodeId, newParentSide || "right");
+    
+    // Update levels for the reparented node and all its descendants
+    this.updateNodeAndDescendantsLevels(nodeId);
 
     // Create a temporary connection immediately so it's visible during animation
     // This will be replaced with the correct position after animations complete
@@ -868,6 +871,26 @@ export class MindmapController {
       }
       
       this.updateNodeAndDescendantsSides(childId, side);
+    });
+  }
+
+  private updateNodeAndDescendantsLevels(nodeId: string): void {
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    if (!nodePosition) return;
+    
+    // Calculate the new level based on the parent's level
+    if (nodePosition.parentId) {
+      const parentPosition = this.positioner.getNodePosition(nodePosition.parentId);
+      if (parentPosition) {
+        nodePosition.level = parentPosition.level + 1;
+        this.positioner.updateNodePosition(nodeId, nodePosition);
+      }
+    }
+    
+    // Recursively update all descendants' levels
+    const children = this.positioner.getChildren(nodeId);
+    children.forEach(childId => {
+      this.updateNodeAndDescendantsLevels(childId);
     });
   }
 
@@ -1159,5 +1182,41 @@ export class MindmapController {
         data: { childrenIds: [] } // Children already processed recursively
       });
     }
+  }
+
+  public getAllNodesData(): Array<{
+    id: string;
+    text: string;
+    position: NodePosition;
+    children: string[];
+    isRoot: boolean;
+    isSelected: boolean;
+  }> {
+    const nodesData: Array<{
+      id: string;
+      text: string;
+      position: NodePosition;
+      children: string[];
+      isRoot: boolean;
+      isSelected: boolean;
+    }> = [];
+
+    this.konvaNodes.forEach((node, nodeId) => {
+      const position = this.positioner.getNodePosition(nodeId);
+      const children = this.positioner.getChildren(nodeId);
+      
+      if (position) {
+        nodesData.push({
+          id: nodeId,
+          text: node.getText(),
+          position: position,
+          children: children,
+          isRoot: nodeId === this.rootId,
+          isSelected: nodeId === this.selectedNodeId
+        });
+      }
+    });
+
+    return nodesData;
   }
 }

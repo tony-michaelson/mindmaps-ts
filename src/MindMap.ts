@@ -217,4 +217,14 @@ export class MindMap {
   public getController(): MindmapController {
     return this.controller;
   }
+
+  public exportToJson(): string {
+    const exportData = {
+      timestamp: new Date().toISOString(),
+      rootId: this.controller.getRootId(),
+      nodes: this.controller.getAllNodesData()
+    };
+    
+    return JSON.stringify(exportData, null, 2);
+  }
 }
