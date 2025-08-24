@@ -1,4 +1,5 @@
 import Konva from "konva";
+import { v4 as uuidv4 } from "uuid";
 import { Node } from "./Node";
 import { HierarchicalPositioner } from "./HierarchicalPositioner";
 import { ConnectionCache } from "./ConnectionCache";
@@ -20,7 +21,6 @@ export class MindmapController {
   private rootId: string | null = null;
   private rootX: number;
   private rootY: number;
-  private nodeCounter = 0;
   private selectedNodeId: string | null = null;
   private pendingRedraw = false;
   private dragUpdateThrottle = 0;
@@ -253,7 +253,7 @@ export class MindmapController {
     const children = this.positioner.getChildren(parentId);
 
     children.forEach((childId) => {
-      const connectionId = `${parentId}-${childId}`;
+      const connectionId = `${parentId}|${childId}`;
 
       // Remove old connection
       const oldConnection = this.connections.get(connectionId);
@@ -292,7 +292,7 @@ export class MindmapController {
         const childPos = this.positioner.getNodePosition(childId);
         if (!childPos) return;
 
-        const connectionId = `${parentId}-${childId}`;
+        const connectionId = `${parentId}|${childId}`;
         
         // Get actual node dimensions
         const parentNode = this.konvaNodes.get(parentId);
@@ -381,7 +381,7 @@ export class MindmapController {
 
     // Process only visible connections
     this.connections.forEach((connection, connectionId) => {
-      const [parentId, childId] = connectionId.split('-');
+      const [parentId, childId] = connectionId.split('|');
       const parentNode = this.konvaNodes.get(parentId);
       const childNode = this.konvaNodes.get(childId);
       
@@ -678,7 +678,7 @@ export class MindmapController {
   }
 
   private generateNodeId(): string {
-    return `node_${++this.nodeCounter}`;
+    return uuidv4();
   }
 
   private findNodeIdByPosition(position: NodePosition): string | null {
@@ -788,7 +788,7 @@ export class MindmapController {
       this.positioner.removeFromChildrenMap(oldParentId, nodeId);
       
       // Remove old connection
-      const oldConnectionId = `${oldParentId}-${nodeId}`;
+      const oldConnectionId = `${oldParentId}|${nodeId}`;
       const oldConnection = this.connections.get(oldConnectionId);
       if (oldConnection) {
         oldConnection.destroy();
@@ -926,7 +926,7 @@ export class MindmapController {
     const childCenterX = childGroup.x() + childRect.width() / 2;
     const childCenterY = childGroup.y() + childRect.height() / 2;
     
-    const connectionId = `${parentId}-${childId}`;
+    const connectionId = `${parentId}|${childId}`;
     
     // Create connection using visual positions
     const connection = new Konva.Shape({
@@ -1014,14 +1014,14 @@ export class MindmapController {
     // Update connection FROM parent TO this node (if it has a parent)
     const nodePosition = this.positioner.getNodePosition(nodeId);
     if (nodePosition && nodePosition.parentId) {
-      const connectionId = `${nodePosition.parentId}-${nodeId}`;
+      const connectionId = `${nodePosition.parentId}|${nodeId}`;
       this.updateConnectionPath(connectionId, nodePosition.parentId, nodeId);
     }
     
     // Update connections FROM this node TO its children
     const children = this.positioner.getChildren(nodeId);
     children.forEach(childId => {
-      const connectionId = `${nodeId}-${childId}`;
+      const connectionId = `${nodeId}|${childId}`;
       this.updateConnectionPath(connectionId, nodeId, childId);
     });
     
@@ -1100,14 +1100,14 @@ export class MindmapController {
     // Update connection FROM parent TO this node (if it has a parent)
     const nodePosition = this.positioner.getNodePosition(nodeId);
     if (nodePosition && nodePosition.parentId) {
-      const connectionId = `${nodePosition.parentId}-${nodeId}`;
+      const connectionId = `${nodePosition.parentId}|${nodeId}`;
       this.updateConnectionPathImmediate(connectionId, nodePosition.parentId, nodeId);
     }
     
     // Update connections FROM this node TO its children
     const children = this.positioner.getChildren(nodeId);
     children.forEach(childId => {
-      const connectionId = `${nodeId}-${childId}`;
+      const connectionId = `${nodeId}|${childId}`;
       this.updateConnectionPathImmediate(connectionId, nodeId, childId);
     });
     
@@ -1149,7 +1149,7 @@ export class MindmapController {
     // Remove connections from this node to its children (should be empty now after recursive deletion)
     const remainingChildren = this.positioner.getChildren(nodeId);
     remainingChildren.forEach((childId) => {
-      const connectionId = `${nodeId}-${childId}`;
+      const connectionId = `${nodeId}|${childId}`;
       const connection = this.connections.get(connectionId);
       if (connection) {
         connection.destroy();
@@ -1160,7 +1160,7 @@ export class MindmapController {
     // Remove connection from parent to this node
     const nodePosition = this.positioner.getNodePosition(nodeId);
     if (nodePosition && nodePosition.parentId) {
-      const parentConnectionId = `${nodePosition.parentId}-${nodeId}`;
+      const parentConnectionId = `${nodePosition.parentId}|${nodeId}`;
       const parentConnection = this.connections.get(parentConnectionId);
       if (parentConnection) {
         parentConnection.destroy();

@@ -89,11 +89,11 @@ export class BatchProcessor {
         result.nodesToUpdate.add(op.nodeId);
         // Also update connections for moved nodes
         if (op.data?.parentId) {
-          result.connectionsToUpdate.add(`${op.data.parentId}-${op.nodeId}`);
+          result.connectionsToUpdate.add(`${op.data.parentId}|${op.nodeId}`);
         }
         if (op.data?.childrenIds) {
           op.data.childrenIds.forEach((childId: string) => {
-            result.connectionsToUpdate.add(`${op.nodeId}-${childId}`);
+            result.connectionsToUpdate.add(`${op.nodeId}|${childId}`);
           });
         }
       });
@@ -105,7 +105,7 @@ export class BatchProcessor {
       operationsByType.nodeAdd.forEach(op => {
         result.nodesToUpdate.add(op.nodeId);
         if (op.data?.parentId) {
-          result.connectionsToUpdate.add(`${op.data.parentId}-${op.nodeId}`);
+          result.connectionsToUpdate.add(`${op.data.parentId}|${op.nodeId}`);
         }
       });
       result.needsRedraw = true;
@@ -115,11 +115,11 @@ export class BatchProcessor {
     if (operationsByType.nodeRemove) {
       operationsByType.nodeRemove.forEach(op => {
         if (op.data?.parentId) {
-          result.connectionsToRemove.add(`${op.data.parentId}-${op.nodeId}`);
+          result.connectionsToRemove.add(`${op.data.parentId}|${op.nodeId}`);
         }
         if (op.data?.childrenIds) {
           op.data.childrenIds.forEach((childId: string) => {
-            result.connectionsToRemove.add(`${op.nodeId}-${childId}`);
+            result.connectionsToRemove.add(`${op.nodeId}|${childId}`);
           });
         }
       });
