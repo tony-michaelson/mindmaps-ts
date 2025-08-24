@@ -14,6 +14,7 @@ export enum ActionType {
 }
 
 export type CallbackFunction = (nodeData: string) => void | Promise<void>;
+export type LinkCallback = (nodeId: string, data: Record<string, any>) => void | Promise<void>;
 
 export class MindMap {
   private stage: Konva.Stage;
@@ -25,6 +26,7 @@ export class MindMap {
   private callbacks: Map<ActionType, CallbackFunction[]> = new Map();
   private defaultNodeType: NodeType = NodeType.TASK;
   private contextMenu: ContextMenu;
+  private linkCallback: LinkCallback;
 
   constructor(containerId: string, width: number, height: number) {
     this.stage = new Konva.Stage({
@@ -46,6 +48,13 @@ export class MindMap {
     );
 
     this.contextMenu = new ContextMenu(this.handleMenuAction.bind(this));
+
+    // Set default link callback that opens URLs in new tab
+    this.linkCallback = async (nodeId: string, data: Record<string, any>) => {
+      if (data.url && typeof data.url === 'string') {
+        window.open(data.url, '_blank');
+      }
+    };
 
     this.controller.onNodeSelected = async (nodeId: string | null) => {
       this.selectedNodeId = nodeId;
@@ -72,6 +81,11 @@ export class MindMap {
     ) => {
       await this.triggerCallbacks(ActionType.NODE_RIGHT_CLICK, nodeId);
       this.showContextMenu(nodeId, x, y);
+    };
+
+    this.controller.onLinkClick = async (nodeId: string) => {
+      const nodeData = this.controller.getNodeData(nodeId);
+      await this.linkCallback(nodeId, nodeData);
     };
 
     this.initEvents();
@@ -220,17 +234,18 @@ export class MindMap {
     this.controller.removeNode(selectedNodeId);
   }
 
-  public createRoot(text: string): string {
-    return this.controller.createRootNode(text);
+  public createRoot(text: string, data: Record<string, any> = {}): string {
+    return this.controller.createRootNode(text, data);
   }
 
   public async addChildToNode(
     parentId: string,
     text: string = "",
-    type?: NodeType
+    type?: NodeType,
+    data: Record<string, any> = {}
   ): Promise<string> {
     const nodeType = type || this.defaultNodeType;
-    const nodeId = this.controller.addNodeToExisting(parentId, text, nodeType);
+    const nodeId = this.controller.addNodeToExisting(parentId, text, nodeType, data);
     await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
     return nodeId;
   }
@@ -238,10 +253,11 @@ export class MindMap {
   public async addRootChild(
     text: string = "",
     type?: NodeType,
-    side: "left" | "right" = "right"
+    side: "left" | "right" = "right",
+    data: Record<string, any> = {}
   ): Promise<string> {
     const nodeType = type || this.defaultNodeType;
-    const nodeId = this.controller.addNodeToRoot(text, nodeType, side);
+    const nodeId = this.controller.addNodeToRoot(text, nodeType, side, data);
     await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
     return nodeId;
   }
@@ -259,6 +275,14 @@ export class MindMap {
 
   public getNodeCount(): number {
     return this.controller.getNodeCount();
+  }
+
+  public getNodeData(nodeId: string): Record<string, any> {
+    return this.controller.getNodeData(nodeId);
+  }
+
+  public setNodeData(nodeId: string, data: Record<string, any>): void {
+    this.controller.setNodeData(nodeId, data);
   }
 
   public getRootId(): string | null {
@@ -296,6 +320,10 @@ export class MindMap {
 
   public setDefaultNodeType(nodeType: NodeType): void {
     this.defaultNodeType = nodeType;
+  }
+
+  public setLinkCallback(callback: LinkCallback): void {
+    this.linkCallback = callback;
   }
 
   public getDefaultNodeType(): NodeType {

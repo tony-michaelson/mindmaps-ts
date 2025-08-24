@@ -13,6 +13,7 @@ export enum NodeType {
   RESOURCE = "resource",
   DEADLINE = "deadline",
   ROOT = "root",
+  LINK = "link",
 }
 
 export interface NodeConfig {
@@ -41,6 +42,10 @@ export const NODE_CONFIGS: Record<NodeType, NodeConfig> = {
   [NodeType.DEADLINE]: {
     color: "#F44336",
     shape: "diamond",
+  },
+  [NodeType.LINK]: {
+    color: "#2196F3",
+    shape: "circle",
   },
 };
 

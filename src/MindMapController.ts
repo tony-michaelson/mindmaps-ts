@@ -15,6 +15,7 @@ export class MindmapController {
   private positioner = new HierarchicalPositioner();
   private konvaNodes: Map<string, Node> = new Map();
   private nodeTypes: Map<string, NodeType> = new Map();
+  private nodeData: Map<string, Record<string, any>> = new Map();
   private connections: Map<string, Konva.Shape> = new Map();
   private connectionCache = new ConnectionCache();
   private batchProcessor = new BatchProcessor();
@@ -33,6 +34,7 @@ export class MindmapController {
   public onNodeTextChange?: (nodeId: string, newText: string) => void;
   public onNodeDoubleClick?: (nodeId: string) => void;
   public onNodeRightClick?: (nodeId: string, x: number, y: number) => void;
+  public onLinkClick?: (nodeId: string) => void;
 
   constructor(layer: Konva.Layer, rootX: number, rootY: number) {
     this.layer = layer;
@@ -48,7 +50,7 @@ export class MindmapController {
     }
   }
 
-  createRootNode(text: string): string {
+  createRootNode(text: string, data: Record<string, any> = {}): string {
     const nodeId = this.generateNodeId();
     this.rootId = nodeId;
 
@@ -61,10 +63,11 @@ export class MindmapController {
     );
 
     this.createAndPositionNode(nodeId, position, text, NodeType.ROOT);
+    this.nodeData.set(nodeId, data);
     return nodeId;
   }
 
-  addNodeToRoot(text: string, type: NodeType, side: "left" | "right"): string {
+  addNodeToRoot(text: string, type: NodeType, side: "left" | "right", data: Record<string, any> = {}): string {
     if (!this.rootId) {
       throw new Error("Root node must be created first");
     }
@@ -80,6 +83,7 @@ export class MindmapController {
       );
 
       this.createAndPositionNode(nodeId, position, text, type);
+      this.nodeData.set(nodeId, data);
       this.updateChildrenMap(this.rootId!, nodeId);
 
       this.batchProcessor.addOperation({
@@ -96,7 +100,7 @@ export class MindmapController {
     });
   }
 
-  addNodeToExisting(parentId: string, text: string, type: NodeType): string {
+  addNodeToExisting(parentId: string, text: string, type: NodeType, data: Record<string, any> = {}): string {
     const parentSide = this.positioner.getNodeSide(parentId);
     if (!parentSide) {
       throw new Error("Parent node not found");
@@ -113,6 +117,7 @@ export class MindmapController {
       );
 
       this.createAndPositionNode(nodeId, position, text, type);
+      this.nodeData.set(nodeId, data);
       this.updateChildrenMap(parentId, nodeId);
 
       this.batchProcessor.addOperation({
@@ -151,6 +156,8 @@ export class MindmapController {
       onDoubleClick: () => this.onNodeDoubleClick?.(nodeId),
       onRightClick: (x: number, y: number) =>
         this.onNodeRightClick?.(nodeId, x, y),
+      onLinkClick: type === NodeType.LINK ? () => this.onLinkClick?.(nodeId) : undefined,
+      isLinkNode: type === NodeType.LINK,
     });
 
     this.konvaNodes.set(nodeId, node);
@@ -700,6 +707,7 @@ export class MindmapController {
 
     this.konvaNodes.clear();
     this.nodeTypes.clear();
+    this.nodeData.clear();
     this.connections.clear();
     this.connectionCache.clearCache();
 
@@ -716,12 +724,13 @@ export class MindmapController {
     level: number;
     side: string;
     isSelected: boolean;
+    data?: Record<string, any>;
     children: Array<any>;
   }): void {
     this.batchProcessor.batch(() => {
       this.clear();
 
-      const rootId = this.createRootNode(treeData.text);
+      const rootId = this.createRootNode(treeData.text, treeData.data || {});
 
       const nodeQueue: Array<{ nodeData: any; parentId: string }> = [];
 
@@ -742,13 +751,15 @@ export class MindmapController {
           newNodeId = this.addNodeToRoot(
             nodeData.text,
             nodeData.type,
-            nodeData.side as "left" | "right"
+            nodeData.side as "left" | "right",
+            nodeData.data || {}
           );
         } else {
           newNodeId = this.addNodeToExisting(
             parentId,
             nodeData.text,
-            nodeData.type
+            nodeData.type,
+            nodeData.data || {}
           );
         }
 
@@ -899,6 +910,14 @@ export class MindmapController {
 
   public getNodeType(nodeId: string): NodeType | null {
     return this.nodeTypes.get(nodeId) || null;
+  }
+
+  public getNodeData(nodeId: string): Record<string, any> {
+    return this.nodeData.get(nodeId) || {};
+  }
+
+  public setNodeData(nodeId: string, data: Record<string, any>): void {
+    this.nodeData.set(nodeId, data);
   }
 
   public getKonvaNode(nodeId: string) {
@@ -1544,6 +1563,7 @@ export class MindmapController {
       node.remove();
       this.konvaNodes.delete(nodeId);
       this.nodeTypes.delete(nodeId);
+      this.nodeData.delete(nodeId);
     }
 
     if (this.selectedNodeId === nodeId) {
@@ -1593,6 +1613,7 @@ export class MindmapController {
     level: number;
     side: string;
     isSelected: boolean;
+    data: Record<string, any>;
     children: Array<any>;
   } | null {
     if (!this.rootId) return null;
@@ -1607,6 +1628,7 @@ export class MindmapController {
     level: number;
     side: string;
     isSelected: boolean;
+    data: Record<string, any>;
     children: Array<any>;
   } {
     const node = this.konvaNodes.get(nodeId);
@@ -1622,6 +1644,7 @@ export class MindmapController {
       level: position?.level || 0,
       side: position?.side || "right",
       isSelected: nodeId === this.selectedNodeId,
+      data: this.nodeData.get(nodeId) || {},
       children: children,
     };
   }
@@ -1634,6 +1657,7 @@ export class MindmapController {
       level: number;
       side: string;
       isSelected: boolean;
+      data?: Record<string, any>;
       children: Array<any>;
     },
     parentId: string | null
@@ -1641,16 +1665,17 @@ export class MindmapController {
     let nodeId: string;
 
     if (parentId === null) {
-      nodeId = this.createRootNode(nodeData.text);
+      nodeId = this.createRootNode(nodeData.text, nodeData.data || {});
     } else {
       if (nodeData.level === 1) {
         nodeId = this.addNodeToRoot(
           nodeData.text,
           nodeData.type,
-          nodeData.side as "left" | "right"
+          nodeData.side as "left" | "right",
+          nodeData.data || {}
         );
       } else {
-        nodeId = this.addNodeToExisting(parentId, nodeData.text, nodeData.type);
+        nodeId = this.addNodeToExisting(parentId, nodeData.text, nodeData.type, nodeData.data || {});
       }
     }
 

@@ -18,6 +18,8 @@ export class Node {
   private onSizeChange?: () => void;
   private onDoubleClick?: () => void;
   private onRightClick?: (x: number, y: number) => void;
+  private onLinkClick?: () => void;
+  private isLinkNode: boolean = false;
   private textArea?: HTMLTextAreaElement;
 
   private static readonly defaultStyles = {
@@ -36,6 +38,8 @@ export class Node {
     onSizeChange?: () => void;
     onDoubleClick?: () => void;
     onRightClick?: (x: number, y: number) => void;
+    onLinkClick?: () => void;
+    isLinkNode?: boolean;
   }) {
     const {
       x,
@@ -48,11 +52,15 @@ export class Node {
       onSizeChange,
       onDoubleClick,
       onRightClick,
+      onLinkClick,
+      isLinkNode = false,
     } = params;
     this.onTextChange = onTextChange;
     this.onSizeChange = onSizeChange;
     this.onDoubleClick = onDoubleClick;
     this.onRightClick = onRightClick;
+    this.onLinkClick = onLinkClick;
+    this.isLinkNode = isLinkNode;
 
     this.currentText = text.replace(/\n/g, " ");
 
@@ -290,7 +298,12 @@ export class Node {
       if (this.onDoubleClick) {
         this.onDoubleClick();
       }
-      this.startEditing();
+      
+      if (this.isLinkNode && this.onLinkClick) {
+        this.onLinkClick();
+      } else {
+        this.startEditing();
+      }
     });
 
     this.group.on("contextmenu", (e) => {
