@@ -102,14 +102,12 @@ export class TreeLayoutCalculator {
       maxChildWidth * 0.3 + LAYOUT_CONFIG.horizontalSpacing
     );
     // For left side, position children to the left of parent
-    console.log("side", side);
     const horizontal =
       side === "left"
         ? -(horizontalSpacing + parentWidth)
         : parentWidth + horizontalSpacing;
     const positioned: SubtreeLayout[] = [];
 
-    console.log("horizontal", horizontal);
 
     if (subtrees.length === 1) {
       // Single child aligns with parent

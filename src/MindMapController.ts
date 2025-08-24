@@ -81,10 +81,8 @@ export class MindmapController {
         this.rootX,
         this.rootY
       );
-      console.log('📍 Position calculated for', nodeId, ':', position);
 
       this.createAndPositionNode(nodeId, position, text, type);
-      console.log('🎯 Node created and positioned at', position.x, position.y);
       this.updateChildrenMap(this.rootId!, nodeId);
       
       // Add batch operations
@@ -117,10 +115,8 @@ export class MindmapController {
         this.rootX,
         this.rootY
       );
-      console.log('📍 Position calculated for child', nodeId, 'parent:', parentId, 'position:', position);
 
       this.createAndPositionNode(nodeId, position, text, type);
-      console.log('🎯 Child node positioned at', position.x, position.y);
       this.updateChildrenMap(parentId, nodeId);
       
       // Add batch operations
@@ -281,9 +277,7 @@ export class MindmapController {
 
   // Schedule a connection update (batched and optimized)
   private scheduleConnectionUpdate(parentId: string): void {
-    console.log(`Scheduling connection update for parent: ${parentId}`);
     this.batchProcessor.addBatchCallback(() => {
-      console.log(`Executing batch callback for connection update: ${parentId}`);
       this.updateConnectionsOptimized([parentId]);
     });
   }
@@ -291,7 +285,6 @@ export class MindmapController {
   // Optimized connection update for specific parents
   private updateConnectionsOptimized(parentIds: string[]): void {
     const viewport = this.getViewportBounds();
-    console.log(`Viewport bounds:`, viewport);
     let hasVisibleChanges = false;
 
     parentIds.forEach(parentId => {
@@ -330,7 +323,6 @@ export class MindmapController {
         const isVisible = this.connectionCache.isConnectionVisible(
           connectionId, parentCenterX, parentCenterY, childCenterX, childCenterY, viewport
         );
-        console.log(`Connection ${connectionId} visibility:`, isVisible, { parentPos, childPos, viewport });
         
         if (!isVisible) {
           // Remove off-screen connection if it exists
@@ -343,14 +335,12 @@ export class MindmapController {
           // return; // Skip off-screen connections
         }
 
-        console.log(`Creating connection for ${connectionId}:`, { parentPos, childPos });
         
         const newConnection = this.connectionCache.getCachedConnection(
           parentPos.x, parentPos.y, parentWidth, parentHeight,
           childPos.x, childPos.y, childWidth, childHeight
         );
 
-        console.log(`Created connection shape:`, newConnection);
 
         // Remove old connection
         const oldConnection = this.connections.get(connectionId);
@@ -364,7 +354,6 @@ export class MindmapController {
         newConnection.moveToBottom();
         hasVisibleChanges = true;
         
-        console.log(`Added connection ${connectionId} to layer, total connections:`, this.connections.size);
       });
     });
 
@@ -546,19 +535,15 @@ export class MindmapController {
   }
 
   private handleNodeDrop(nodeId: string, dropX: number, dropY: number): void {
-    console.log(`🎯 handleNodeDrop: nodeId=${nodeId}, dropX=${dropX}, dropY=${dropY}`);
     
     const nodePosition = this.positioner.getNodePosition(nodeId);
     if (!nodePosition) {
-      console.log(`❌ No position found for node ${nodeId}`);
       return;
     }
 
-    console.log(`📍 Node position: level=${nodePosition.level}, side=${nodePosition.side}, parentId=${nodePosition.parentId}`);
 
     // Don't allow root node to be reparented
     if (nodeId === this.rootId) {
-      console.log(`🚫 Cannot drag root node`);
       const position = this.positioner.getNodePosition(nodeId);
       if (position) {
         const node = this.konvaNodes.get(nodeId);
@@ -569,17 +554,14 @@ export class MindmapController {
 
     // First, check if the node is being dropped on another node for reparenting
     const dropTargetId = this.findNodeAtPosition(dropX, dropY, nodeId);
-    console.log(`🔍 Drop target search: found=${dropTargetId}`);
     
     if (dropTargetId && this.canReparent(nodeId, dropTargetId)) {
-      console.log(`👨‍👩‍👧‍👦 Reparenting ${nodeId} to ${dropTargetId}`);
       this.reparentNode(nodeId, dropTargetId);
       return;
     }
 
     // If no reparenting, first check if root child should switch sides (higher priority)
     if (!nodePosition.parentId) {
-      console.log(`❌ No parent ID found for node ${nodeId} - snapping back`);
       // Root node or invalid position - snap back to original
       const position = this.positioner.getNodePosition(nodeId);
       if (position) {
@@ -590,19 +572,14 @@ export class MindmapController {
     }
 
     const parentId = nodePosition.parentId;
-    console.log(`👪 Processing for parentId=${parentId}`);
-    console.log(`🔢 Root ID is: ${this.rootId}`);
 
     // Check if root child should switch sides FIRST (higher priority than sibling reordering)
     if (nodePosition.level === 1 && parentId === this.rootId) {
-      console.log(`✅ This is a root child (level 1) - checking side switch first`);
       const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX, dropY);
       if (shouldSwitchSides) {
-        console.log(`🔄 Switching sides for node ${nodeId} based on drag position`);
         this.moveRootChildToOppositeSide(nodeId, dropX, dropY);
         return;
       } else {
-        console.log(`🤔 Side switch conditions not met, checking sibling reordering`);
       }
     }
 
@@ -610,25 +587,19 @@ export class MindmapController {
     const siblings = this.positioner.getChildren(parentId);
     
     if (siblings.length <= 1) {
-      console.log(`🤔 No siblings to reorder with (only ${siblings.length} sibling)`);
       
       // No siblings to reorder with - check if root child should switch sides
       if (nodePosition.level === 1 && parentId === this.rootId) {
-        console.log(`✅ This is a root child (level 1) with no siblings - checking side switch`);
         const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX, dropY);
         if (shouldSwitchSides) {
-          console.log(`🔄 Switching sides for node ${nodeId} based on drag position`);
           this.moveRootChildToOppositeSide(nodeId, dropX, dropY);
           return;
         } else {
-          console.log(`❌ Side switch conditions not met`);
         }
       } else {
-        console.log(`❌ Not a root child: level=${nodePosition.level}, parentId=${parentId}, rootId=${this.rootId}`);
       }
       
       // Snap back to original position
-      console.log(`📍 Snapping back to original position`);
       const position = this.positioner.getNodePosition(nodeId);
       if (position) {
         const node = this.konvaNodes.get(nodeId);
@@ -669,10 +640,8 @@ export class MindmapController {
 
     // If we found a valid drop target, reorder the siblings
     if (closestSiblingId && insertIndex >= 0) {
-      console.log(`↕️ Reordering siblings: moving ${nodeId} to index ${insertIndex} near ${closestSiblingId}`);
       this.reorderSiblings(parentId, nodeId, insertIndex);
     } else {
-      console.log(`🤔 No valid sibling reordering target found - snapping back`);
       
       // No valid drop target - snap back to original position
       const position = this.positioner.getNodePosition(nodeId);
@@ -794,17 +763,14 @@ export class MindmapController {
     isSelected: boolean;
     children: Array<any>;
   }): void {
-    console.log('🔄 Starting import with tree data:', treeData);
     
     // Wrap entire import in a single batch to avoid positioning conflicts
     this.batchProcessor.batch(() => {
       // Clear existing mindmap
       this.clear();
-      console.log('✅ Cleared existing mindmap');
       
       // Create root first
       const rootId = this.createRootNode(treeData.text);
-      console.log('✅ Created root node:', rootId, 'with text:', treeData.text);
       
       // Create a queue of nodes to process with their parent IDs
       const nodeQueue: Array<{nodeData: any, parentId: string}> = [];
@@ -812,10 +778,8 @@ export class MindmapController {
       // Add all root children to the queue
       treeData.children.forEach(child => {
         nodeQueue.push({ nodeData: child, parentId: rootId });
-        console.log('📝 Added to queue:', child.text, 'parent:', rootId, 'side:', child.side);
       });
       
-      console.log('📊 Processing queue with', nodeQueue.length, 'items');
       
       // Process the queue iteratively
       let processCount = 0;
@@ -823,55 +787,40 @@ export class MindmapController {
         const { nodeData, parentId } = nodeQueue.shift()!;
         processCount++;
         
-        console.log(`🔨 Processing node ${processCount}:`, nodeData.text, 'parent:', parentId);
         
         let newNodeId: string;
         
         // Determine if this is a direct child of root
         const isRootChild = parentId === rootId;
-        console.log('🎯 Is root child:', isRootChild, 'level:', nodeData.level);
         
         if (isRootChild) {
           // Use addNodeToRoot for proper side handling
-          console.log('➡️ Calling addNodeToRoot with side:', nodeData.side);
           newNodeId = this.addNodeToRoot(
             nodeData.text, 
             nodeData.type, 
             nodeData.side as "left" | "right"
           );
-          console.log('✅ Created root child:', newNodeId);
         } else {
           // Use addNodeToExisting for deeper nodes
-          console.log('⬇️ Calling addNodeToExisting, parent:', parentId);
           newNodeId = this.addNodeToExisting(parentId, nodeData.text, nodeData.type);
-          console.log('✅ Created child node:', newNodeId);
         }
         
         // Add this node's children to the queue
         if (nodeData.children && nodeData.children.length > 0) {
-          console.log('👶 Adding', nodeData.children.length, 'children to queue');
           nodeData.children.forEach((child: any) => {
             nodeQueue.push({ nodeData: child, parentId: newNodeId });
-            console.log('  📝 Queued child:', child.text);
           });
         }
       }
       
-      console.log('🎉 Import completed! Processed', processCount, 'nodes');
       
       // Trigger full layout recalculation to properly position all nodes
-      console.log('🗖️ Triggering layout recalculation...');
       
       // Debug: Check what the positioner sees
-      console.log('🔍 Positioner state before layout:');
-      console.log('  Root ID:', this.rootId);
-      console.log('  Root children:', this.positioner.getChildren(this.rootId!));
       this.positioner.getChildren(this.rootId!).forEach(childId => {
-        console.log('    Child', childId, 'children:', this.positioner.getChildren(childId));
       });
       
       const layoutResults = this.positioner.repositionSiblings(this.rootId!, this.rootX, this.rootY);
-      console.log('✅ Layout recalculated,', layoutResults.length, 'positions updated');
       
       // Update all node positions with the recalculated layout
       // layoutResults contains the updated NodePosition objects
@@ -880,7 +829,6 @@ export class MindmapController {
         const position = this.positioner.getNodePosition(nodeId);
         const node = this.konvaNodes.get(nodeId);
         if (node && node.getGroup() && position) {
-          console.log('📍 Updating', nodeId, 'to position', position.x, position.y);
           node.getGroup().x(position.x - LAYOUT_CONFIG.width / 2);
           node.getGroup().y(position.y - LAYOUT_CONFIG.height / 2);
         }
@@ -1009,25 +957,21 @@ export class MindmapController {
   public moveRootChildToOppositeSide(nodeId: string, dropX?: number, dropY?: number): void {
     const nodePosition = this.positioner.getNodePosition(nodeId);
     if (!nodePosition) {
-      console.warn('Node not found:', nodeId);
       return;
     }
 
     // Only allow moving root children (level 1)
     if (nodePosition.level !== 1) {
-      console.warn('Can only move root children (level 1 nodes)');
       return;
     }
 
     const currentSide = this.positioner.getNodeSide(nodeId);
     if (!currentSide) {
-      console.warn('Node side not found:', nodeId);
       return;
     }
 
     const newSide = currentSide === "left" ? "right" : "left";
     
-    console.log(`Moving node ${nodeId} from ${currentSide} to ${newSide}`);
     
     // Update the node's side and all its descendants
     this.updateNodeAndDescendantsSides(nodeId, newSide);
@@ -1091,7 +1035,6 @@ export class MindmapController {
       return false; // Too close to center, don't switch
     }
     
-    console.log(`🎯 Drop analysis: dropX=${dropX}, rootX=${rootCenterX}, currentSide=${currentSide}, distance=${distanceFromCenter}`);
     
     return shouldMoveToLeft || shouldMoveToRight;
   }
@@ -1107,10 +1050,8 @@ export class MindmapController {
       return siblingPosition && siblingPosition.side === newSide;
     });
 
-    console.log(`🎯 Positioning node on ${newSide} side among ${newSideSiblings.length} siblings`);
 
     if (newSideSiblings.length === 0) {
-      console.log(`📍 No siblings on ${newSide} side - node will be positioned normally`);
       return; // No siblings to position relative to
     }
 
@@ -1136,7 +1077,6 @@ export class MindmapController {
       }
     });
 
-    console.log(`📐 Optimal insertion index: ${insertIndex} out of ${newSideSiblings.length} siblings`);
 
     // Reorder the children array to place the moved node at the optimal position
     // First, remove the node from current position
@@ -1167,7 +1107,6 @@ export class MindmapController {
     const reorderedChildren = [...leftSideNodes, ...rightSideNodes];
     this.positioner.setChildrenArray(this.rootId, reorderedChildren);
     
-    console.log(`✅ Reordered children for optimal positioning`);
   }
 
   public clearCaches(): void {

@@ -119,35 +119,27 @@ export class Node {
 
   // Helper function to wrap text at 25 character limit
   private wrapText(text: string, maxChars: number = 25): string {
-    console.log('🌀 wrapText called with:', { text, length: text.length, maxChars });
-    
     if (text.length <= maxChars) {
-      console.log('🌀 No wrapping needed, returning original text');
       return text;
     }
 
     const words = text.split(" ");
-    console.log('🌀 Split into words:', words);
     let result = "";
     let currentLine = "";
 
     for (const word of words) {
       const testLine = currentLine ? currentLine + " " + word : word;
-      console.log('🌀 Testing line:', { testLine, length: testLine.length });
       
       if (testLine.length <= maxChars) {
         currentLine = testLine;
-        console.log('🌀 Line fits, currentLine now:', currentLine);
       } else {
         // If current line has content, add it to result
         if (currentLine) {
           result += (result ? "\n" : "") + currentLine;
           currentLine = word;
-          console.log('🌀 Line too long, moved to next line. Result:', JSON.stringify(result), 'currentLine:', currentLine);
         } else {
           // Single word is too long, truncate it
           currentLine = word.substring(0, maxChars);
-          console.log('🌀 Word too long, truncated to:', currentLine);
         }
       }
     }
@@ -156,7 +148,6 @@ export class Node {
       result += (result ? "\n" : "") + currentLine;
     }
 
-    console.log('🌀 Final wrapped text:', JSON.stringify(result));
     return result;
   }
 
@@ -329,15 +320,11 @@ export class Node {
   public startEditing(): void {
     if (this.isEditing) return;
     
-    console.log('🎯 Starting edit mode');
     this.isEditing = true;
     
     // Get the current display text and unwrap it for editing
     const displayText = this.textElement.text();
     this.currentText = displayText.replace(/\n/g, ' ');
-    
-    console.log('🎯 Display text:', JSON.stringify(displayText));
-    console.log('🎯 Unwrapped currentText for editing:', JSON.stringify(this.currentText));
     
     // Add keyboard event listener with high priority capture
     document.addEventListener('keydown', this.handleKeydown, true);
@@ -346,37 +333,28 @@ export class Node {
     this.rectElement.stroke("#00FF88");
     this.rectElement.strokeWidth(2);
     this.layer.draw();
-    
-    console.log('✅ Edit mode active, listening for keyboard events');
   }
 
   private handleKeydown = (e: KeyboardEvent): void => {
     if (!this.isEditing) return;
     
-    console.log('⌨️ Node keydown event:', e.key, 'currentText length:', this.currentText.length);
     e.preventDefault();
     e.stopPropagation();
     
     // Handle special keys
     switch (e.key) {
       case 'Enter':
-        console.log('📝 Finishing edit');
         this.finishEditing();
         return;
       case 'Escape':
-        console.log('❌ Canceling edit');
         this.cancelEditing();
         return;
       case 'Backspace':
-        console.log('⬅️ Backspace - removing character from:', this.currentText);
         this.currentText = this.currentText.slice(0, -1);
-        console.log('⬅️ New text after backspace:', this.currentText);
         this.updateDisplayText();
         return;
       case 'Delete':
-        console.log('🗑️ Delete - removing character from:', this.currentText);
         this.currentText = this.currentText.slice(0, -1);
-        console.log('🗑️ New text after delete:', this.currentText);
         this.updateDisplayText();
         return;
     }
@@ -385,25 +363,19 @@ export class Node {
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       // Check length limit
       if (this.currentText.length < LAYOUT_CONFIG.maxNodeTextLength) {
-        // console.log('➕ Adding character:', e.key, 'to text:', this.currentText);
         this.currentText += e.key;
         this.updateDisplayText();
-      } else {
-        // console.log('⚠️ Text length limit reached');
       }
     }
   };
 
   private updateDisplayText(): void {
-    console.log('🔄 updateDisplayText called with currentText:', this.currentText);
     const wrappedText = this.wrapText(this.currentText, 25);
-    console.log('📝 Wrapped text:', JSON.stringify(wrappedText));
     this.textElement.text(wrappedText);
     
     // Store previous dimensions to check if size changed
     const oldWidth = this.rectElement.width();
     const oldHeight = this.rectElement.height();
-    console.log('📏 Previous dimensions:', { width: oldWidth, height: oldHeight });
     
     // Force text element to refresh its dimensions
     this.textElement.measureSize();
@@ -411,7 +383,6 @@ export class Node {
     // Get raw text dimensions
     const rawTextWidth = this.textElement.width();
     const rawTextHeight = this.textElement.height();
-    console.log('📐 Raw text dimensions:', { width: rawTextWidth, height: rawTextHeight });
     
     // Measure new text dimensions with reasonable minimum size constraints
     // Only apply minimum width if text is extremely small (less than 20px)
@@ -419,12 +390,6 @@ export class Node {
     const textHeight = Math.max(rawTextHeight, 16); // Reasonable minimum height
     const nodeWidth = textWidth + this.padding * 2;
     const nodeHeight = textHeight + this.padding * 2;
-    
-    console.log('📦 New node dimensions:', { 
-      textWidth, textHeight, nodeWidth, nodeHeight, 
-      widthChange: Math.abs(oldWidth - nodeWidth),
-      heightChange: Math.abs(oldHeight - nodeHeight)
-    });
     
     // Update rectangle size
     this.rectElement.width(nodeWidth);
@@ -440,7 +405,6 @@ export class Node {
     const widthChange = Math.abs(oldWidth - nodeWidth);
     const heightChange = Math.abs(oldHeight - nodeHeight);
     if ((widthChange > 2 || heightChange > 2) && this.onSizeChange) {
-      console.log('🔔 Notifying size change:', { widthChange, heightChange });
       this.onSizeChange();
     }
   }
@@ -448,7 +412,6 @@ export class Node {
   public finishEditing(): void {
     if (!this.isEditing) return;
     
-    // console.log('📝 Finishing edit with text:', this.currentText);
     this.isEditing = false;
     document.removeEventListener('keydown', this.handleKeydown, true);
     
@@ -466,7 +429,6 @@ export class Node {
   private cancelEditing(): void {
     if (!this.isEditing) return;
     
-    // console.log('❌ Canceling edit');
     this.isEditing = false;
     document.removeEventListener('keydown', this.handleKeydown, true);
     

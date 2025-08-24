@@ -90,7 +90,6 @@ export class MindMap {
   private initKeyboardShortcuts(): void {
     window.addEventListener("keydown", (e) => {
       const isEditing = this.controller.isAnyNodeEditing();
-      // console.log('🎮 MindMap keydown:', e.key, 'isEditing:', isEditing);
       
       // Only handle shortcuts when no input is focused and no node is being edited
       if (
@@ -98,11 +97,9 @@ export class MindMap {
         document.activeElement?.tagName === "TEXTAREA" ||
         isEditing
       ) {
-        // console.log('🚫 MindMap skipping key handling - input focused or node editing');
         return;
       }
 
-      // console.log('✅ MindMap handling key:', e.key);
       switch (e.key) {
         case "ArrowRight":
           e.preventDefault();
@@ -143,7 +140,6 @@ export class MindMap {
       this.layer.draw();
       await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
     } catch (error) {
-      console.error("Failed to add node:", error);
     }
   }
 
@@ -155,7 +151,6 @@ export class MindMap {
         this.layer.draw();
         await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
       } catch (error) {
-        console.error("Failed to add child to selected node:", error);
         // Fallback to adding to root
         await this.addRootChild(text, type);
       }
@@ -177,7 +172,6 @@ export class MindMap {
           this.layer.draw();
           await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
         } catch (error) {
-          console.error("Failed to add sibling to selected node:", error);
           // Fallback to adding to root
           await this.addRootChild(text, type);
         }
@@ -200,7 +194,6 @@ export class MindMap {
     
     // Don't allow deleting the root node
     if (!selectedNodeId || selectedNodeId === rootId) {
-      console.log("Cannot delete root node or no node selected");
       return;
     }
     
@@ -209,7 +202,6 @@ export class MindMap {
     
     // Remove the selected node
     this.controller.removeNode(selectedNodeId);
-    console.log(`Deleted node: ${selectedNodeId}`);
   }
 
 
@@ -324,7 +316,6 @@ export class MindMap {
         const result = callback(nodeData);
         return Promise.resolve(result);
       } catch (error) {
-        console.error(`Callback error for ${actionType}:`, error);
         return Promise.resolve();
       }
     });
