@@ -7,6 +7,7 @@ export interface MenuAction {
   submenu?: MenuAction[];
   disabled?: boolean;
   separator?: boolean;
+  data?: Record<string, unknown>;
 }
 
 export interface MenuPosition {
@@ -20,6 +21,7 @@ export interface MenuContext {
   nodeType: NodeType;
   isRootChild: boolean;
   canMoveToOppositeSide: boolean;
+  isRoot: boolean;
 }
 
 export type MenuActionHandler = (
@@ -29,7 +31,7 @@ export type MenuActionHandler = (
 ) => void | Promise<void>;
 
 export class ContextMenu {
-  private element: HTMLDivElement;
+  private element!: HTMLDivElement;
   private isVisible: boolean = false;
   private onAction: MenuActionHandler;
   private currentContext: MenuContext | null = null;
@@ -127,7 +129,11 @@ export class ContextMenu {
     const actions: MenuAction[] = [
       { id: "edit", label: "✏️ Edit Text", icon: "✏️" },
       { separator: true, id: "sep1", label: "" },
-      {
+    ];
+
+    // Only add change type option for non-root nodes
+    if (!context.isRoot) {
+      actions.push({
         id: "change-type",
         label: "🎯 Change Type",
         submenu: [
@@ -149,19 +155,28 @@ export class ContextMenu {
             data: { type: NodeType.CUBE },
           },
         ],
-      },
-      { separator: true, id: "sep2", label: "" },
-      { id: "add-child", label: "➕ Add Child" },
-      { id: "add-sibling", label: "↔️ Add Sibling" },
-      { separator: true, id: "sep3", label: "" },
-    ];
+      });
+      actions.push({ separator: true, id: "sep2", label: "" });
+    }
+
+    actions.push({ id: "add-child", label: "➕ Add Child" });
+    
+    // Only add sibling option for non-root nodes
+    if (!context.isRoot) {
+      actions.push({ id: "add-sibling", label: "↔️ Add Sibling" });
+    }
+    
+    actions.push({ separator: true, id: "sep3", label: "" });
 
     if (context.canMoveToOppositeSide) {
       actions.push({ id: "move-opposite", label: "↔️ Move to Opposite Side" });
       actions.push({ separator: true, id: "sep4", label: "" });
     }
 
-    actions.push({ id: "delete", label: "🗑️ Delete Node" });
+    // Only show delete option for non-root nodes
+    if (!context.isRoot) {
+      actions.push({ id: "delete", label: "🗑️ Delete Node" });
+    }
 
     this.element.innerHTML = this.renderActions(actions);
   }

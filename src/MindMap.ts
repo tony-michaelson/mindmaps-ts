@@ -399,6 +399,7 @@ export class MindMap {
       nodeType,
       isRootChild,
       canMoveToOppositeSide,
+      isRoot: nodeId === rootId,
     };
 
     this.contextMenu.show({ x, y }, context);

@@ -988,6 +988,9 @@ export class MindmapController {
 
     if (!node) return;
 
+    // Prevent changing root node type
+    if (nodeId === this.rootId) return;
+
     const group = node.getGroup();
     const currentX = group.x();
     const currentY = group.y();
@@ -1193,6 +1196,9 @@ export class MindmapController {
   }
 
   public removeNode(nodeId: string): void {
+    // Prevent removing root node
+    if (nodeId === this.rootId) return;
+
     const nodePosition = this.positioner.getNodePosition(nodeId);
     const parentId = nodePosition?.parentId;
 
