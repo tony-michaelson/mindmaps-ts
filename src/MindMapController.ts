@@ -992,9 +992,9 @@ export class MindmapController {
     const currentX = group.x();
     const currentY = group.y();
     const currentText = node.getText();
+    const nodeData = this.nodeData.get(nodeId) || {};
 
-    this.nodeTypes.set(nodeId, newType);
-
+    // Remove old node
     node.remove();
     this.konvaNodes.delete(nodeId);
 
@@ -1014,15 +1014,24 @@ export class MindmapController {
       onDoubleClick: () => this.onNodeDoubleClick?.(nodeId),
       onRightClick: (x: number, y: number) =>
         this.onNodeRightClick?.(nodeId, x, y),
+      onLinkClick: newType === NodeType.LINK ? () => this.onLinkClick?.(nodeId) : undefined,
+      isLinkNode: newType === NodeType.LINK,
+      isNewNode: false,
+      nodeType: newType,
     });
 
     this.konvaNodes.set(nodeId, newNode);
+    this.nodeTypes.set(nodeId, newType);
 
     const newGroup = newNode.getGroup();
     const rect = newGroup.findOne("Rect") as Konva.Rect;
     if (rect) {
       this.positioner.updateNodeDimensions(nodeId, rect.width(), rect.height());
     }
+
+    // Restore proper interactions and connections
+    this.setupNodeInteractions(nodeId);
+    this.initializeCubeChildren(nodeId, newType);
   }
 
   public moveRootChildToOppositeSide(
