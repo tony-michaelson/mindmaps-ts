@@ -1260,8 +1260,8 @@ export class MindmapController {
       }
     }
 
-    // Add to new parent
-    this.positioner.addToChildrenMap(newParentId, nodeId);
+    // Add to new parent at the end (bottom) of the children list
+    this.positioner.addChildAtEnd(newParentId, nodeId);
     
     // Update the node's parentId in its position
     nodePosition.parentId = newParentId;

@@ -174,6 +174,21 @@ export class HierarchicalPositioner {
     this.childrenMap.set(parentId, siblings);
   }
 
+  addChildAtEnd(parentId: string, childId: string): void {
+    // Ensure the child is added at the very end (bottom) of the children list
+    const siblings = this.childrenMap.get(parentId) || [];
+    
+    // Remove the child if it already exists to avoid duplicates
+    const existingIndex = siblings.indexOf(childId);
+    if (existingIndex > -1) {
+      siblings.splice(existingIndex, 1);
+    }
+    
+    // Add at the end
+    siblings.push(childId);
+    this.childrenMap.set(parentId, siblings);
+  }
+
   removeFromChildrenMap(parentId: string, childId: string): void {
     const siblings = this.childrenMap.get(parentId) || [];
     const index = siblings.indexOf(childId);
