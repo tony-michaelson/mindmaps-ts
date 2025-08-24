@@ -318,7 +318,6 @@ export class MindmapController {
         const childCenterX = childPos.x + childWidth / 2;
         const childCenterY = childPos.y + childHeight / 2;
 
-        // TODO: Debug - temporarily disable viewport culling to test connections
         // Check if connection is visible before processing
         const isVisible = this.connectionCache.isConnectionVisible(
           connectionId, parentCenterX, parentCenterY, childCenterX, childCenterY, viewport
@@ -331,8 +330,7 @@ export class MindmapController {
             oldConnection.destroy();
             this.connections.delete(connectionId);
           }
-          // For debugging, let's still create connections even if "not visible"
-          // return; // Skip off-screen connections
+          return; // Skip off-screen connections
         }
 
         
@@ -1115,7 +1113,7 @@ export class MindmapController {
 
   public isAnyNodeEditing(): boolean {
     for (const [nodeId, node] of this.konvaNodes) {
-      if (node.getIsEditing()) {
+      if (node.isCurrentlyEditing()) {
         return true;
       }
     }

@@ -228,10 +228,6 @@ export class MindMap {
     return this.controller.createRootNode(text);
   }
 
-  public addRootNode(text: string): string {
-    return this.controller.createRootNode(text);
-  }
-
   public async addChildToNode(
     parentId: string,
     text: string = "",
@@ -379,9 +375,6 @@ export class MindMap {
       // Validate tree structure
       this.validateTreeStructure(importData.tree);
       
-      // Add missing type information for legacy compatibility
-      this.addMissingTypeInfo(importData.tree);
-      
       // Import the tree
       this.controller.importFromTreeStructure(importData.tree);
       
@@ -402,8 +395,8 @@ export class MindMap {
       throw new Error('Invalid tree structure: Expected object');
     }
     
-    // Required fields (type is optional for legacy compatibility)
-    const requiredFields = ['id', 'text', 'level', 'side', 'children'];
+    // Required fields
+    const requiredFields = ['id', 'text', 'type', 'level', 'side', 'children'];
     for (const field of requiredFields) {
       if (!(field in tree)) {
         throw new Error(`Invalid tree structure: Missing field '${field}'`);
@@ -418,8 +411,7 @@ export class MindMap {
       throw new Error('Invalid tree structure: text must be a string');
     }
     
-    // Type is optional - will be inferred if missing
-    if ('type' in tree && typeof tree.type !== 'string') {
+    if (typeof tree.type !== 'string') {
       throw new Error('Invalid tree structure: type must be a string');
     }
     
@@ -440,23 +432,4 @@ export class MindMap {
     });
   }
 
-  private addMissingTypeInfo(tree: any): void {
-    // Infer type if missing
-    if (!tree.type) {
-      if (tree.level === 0) {
-        // Root node
-        tree.type = NodeType.ROOT;
-      } else {
-        // Default to TASK for non-root nodes
-        tree.type = NodeType.TASK;
-      }
-    }
-    
-    // Recursively process children
-    if (tree.children && Array.isArray(tree.children)) {
-      tree.children.forEach((child: any) => {
-        this.addMissingTypeInfo(child);
-      });
-    }
-  }
 }

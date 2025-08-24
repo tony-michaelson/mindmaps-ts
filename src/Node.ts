@@ -457,9 +457,6 @@ export class Node {
     this.updateDisplayText();
   }
 
-  public getIsEditing(): boolean {
-    return this.isEditing;
-  }
 
   public remove(): void {
     // Clean up event listeners
