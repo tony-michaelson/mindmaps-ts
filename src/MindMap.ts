@@ -284,6 +284,18 @@ export class MindMap {
     this.controller.setNodeData(nodeId, data);
   }
 
+  public setCubeChildData(cubeNodeId: string, faceNumber: number, childData: Record<string, unknown>): void {
+    this.controller.setCubeChildData(cubeNodeId, faceNumber, childData);
+  }
+
+  public getCubeChildData(cubeNodeId: string, faceNumber: number): Record<string, unknown> | null {
+    return this.controller.getCubeChildData(cubeNodeId, faceNumber);
+  }
+
+  public getAllCubeChildren(cubeNodeId: string): Record<string, Record<string, unknown> | null> {
+    return this.controller.getAllCubeChildren(cubeNodeId);
+  }
+
   public getRootId(): string | null {
     return this.controller.getRootId();
   }
@@ -409,6 +421,7 @@ export class MindMap {
       case "type-idea":
       case "type-resource":
       case "type-deadline":
+      case "type-cube":
         if (data?.type) {
           this.controller.changeNodeType(nodeId, data.type);
           this.layer.draw();

@@ -1,4 +1,5 @@
 import Konva from "konva";
+import { NODE_CONFIGS, NodeType } from "./NodePosition";
 
 export class Node {
   private group: Konva.Group;
@@ -42,6 +43,7 @@ export class Node {
     onLinkClick?: () => void;
     isLinkNode?: boolean;
     isNewNode?: boolean;
+    nodeType?: NodeType;
   }) {
     const {
       x,
@@ -57,6 +59,7 @@ export class Node {
       onLinkClick,
       isLinkNode = false,
       isNewNode = false,
+      nodeType,
     } = params;
     this.onTextChange = onTextChange;
     this.onSizeChange = onSizeChange;
@@ -106,33 +109,113 @@ export class Node {
     const nodeWidth = textWidth + this.padding * 2;
     const nodeHeight = textHeight + this.padding * 2;
 
-    const rect = new Konva.Rect({
-      width: nodeWidth,
-      height: nodeHeight,
-      fill: backgroundColor,
-      stroke: this.isActivated ? "#2E9AFE" : "#888",
-      strokeWidth: this.isActivated ? 3 : 1,
-      cornerRadius: 10,
-      listening: true,
-      shadowColor: "black",
-      shadowBlur: this.isSelected ? 0 : 10,
-      shadowOffset: {
-        x: 4,
-        y: this.isCollapsed ? 3 : 4,
-      },
-      shadowOpacity: this.isSelected ? 1.0 : 0.4,
-    });
+    let shapeElement: Konva.Shape;
+    
+    if (nodeType === NodeType.CUBE) {
+      shapeElement = this.createCubeShape(nodeWidth, nodeHeight, backgroundColor);
+    } else {
+      shapeElement = new Konva.Rect({
+        width: nodeWidth,
+        height: nodeHeight,
+        fill: backgroundColor,
+        stroke: this.isActivated ? "#2E9AFE" : "#888",
+        strokeWidth: this.isActivated ? 3 : 1,
+        cornerRadius: 10,
+        listening: true,
+        shadowColor: "black",
+        shadowBlur: this.isSelected ? 0 : 10,
+        shadowOffset: {
+          x: 4,
+          y: this.isCollapsed ? 3 : 4,
+        },
+        shadowOpacity: this.isSelected ? 1.0 : 0.4,
+      });
+    }
 
-    this.rectElement = rect;
+    this.rectElement = shapeElement;
 
     label.x(this.padding);
     label.y(this.padding);
 
-    this.group.add(rect);
+    this.group.add(shapeElement);
     this.group.add(label);
     this.layer.add(this.group);
     this.setupTextEditing();
     this.layer.draw();
+  }
+
+  private createCubeShape(width: number, height: number, backgroundColor: string): Konva.Group {
+    const cubeGroup = new Konva.Group({
+      listening: true,
+    });
+
+    const cubeSize = Math.min(width, height);
+    const depth = cubeSize * 0.3;
+
+    // Front face (main rectangle)
+    const frontFace = new Konva.Rect({
+      width: cubeSize,
+      height: cubeSize,
+      fill: backgroundColor,
+      stroke: this.isActivated ? "#2E9AFE" : "#888",
+      strokeWidth: this.isActivated ? 3 : 1,
+      cornerRadius: 0,
+      listening: true,
+    });
+
+    // Right face (parallelogram)
+    const rightFace = new Konva.Line({
+      points: [
+        cubeSize, 0,
+        cubeSize + depth, -depth,
+        cubeSize + depth, cubeSize - depth,
+        cubeSize, cubeSize
+      ],
+      fill: this.darkenColor(backgroundColor, 0.2),
+      stroke: this.isActivated ? "#2E9AFE" : "#888",
+      strokeWidth: this.isActivated ? 3 : 1,
+      closed: true,
+      listening: true,
+    });
+
+    // Top face (parallelogram)
+    const topFace = new Konva.Line({
+      points: [
+        0, 0,
+        depth, -depth,
+        cubeSize + depth, -depth,
+        cubeSize, 0
+      ],
+      fill: this.darkenColor(backgroundColor, 0.1),
+      stroke: this.isActivated ? "#2E9AFE" : "#888",
+      strokeWidth: this.isActivated ? 3 : 1,
+      closed: true,
+      listening: true,
+    });
+
+    cubeGroup.add(rightFace);
+    cubeGroup.add(topFace);
+    cubeGroup.add(frontFace);
+
+    // Add shadow to the front face instead of the group
+    frontFace.shadowColor("black");
+    frontFace.shadowBlur(this.isSelected ? 0 : 10);
+    frontFace.shadowOffset({
+      x: 4,
+      y: this.isCollapsed ? 3 : 4,
+    });
+    frontFace.shadowOpacity(this.isSelected ? 1.0 : 0.4);
+
+    return cubeGroup;
+  }
+
+  private darkenColor(hex: string, amount: number): string {
+    const color = hex.replace("#", "");
+    const r = Math.max(0, parseInt(color.slice(0, 2), 16) - Math.round(255 * amount));
+    const g = Math.max(0, parseInt(color.slice(2, 4), 16) - Math.round(255 * amount));
+    const b = Math.max(0, parseInt(color.slice(4, 6), 16) - Math.round(255 * amount));
+    
+    return "#" + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0');
   }
 
   private wrapText(text: string, maxChars: number = 25): string {
@@ -226,58 +309,84 @@ export class Node {
   }
 
   private updateVisualStateOnly(): void {
-    const rect = this.group.findOne("Rect") as Konva.Rect;
-    if (rect) {
+    const shapeElement = this.rectElement;
+    if (shapeElement) {
       if (this.isDropTarget) {
-        rect.stroke("#00FF88");
-        rect.strokeWidth(3);
-        rect.dash([]);
-        rect.shadowColor("#00FF88");
-        rect.shadowBlur(15);
-        rect.shadowOpacity(0.8);
+        this.updateShapeStroke(shapeElement, "#00FF88", 3, []);
+        this.updateShapeShadow(shapeElement, "#00FF88", 15, 0.8);
       } else if (this.isDragging) {
-        rect.opacity(0.25);
-        rect.stroke("#2E9AFE");
-        rect.strokeWidth(2);
-        rect.dash([]);
-        rect.shadowColor("#2E9AFE");
-        rect.shadowBlur(20);
-        rect.shadowOpacity(0.6);
-
+        this.updateShapeOpacity(shapeElement, 0.25);
+        this.updateShapeStroke(shapeElement, "#2E9AFE", 2, []);
+        this.updateShapeShadow(shapeElement, "#2E9AFE", 20, 0.6);
         this.textElement.opacity(0.25);
       } else if (this.isSelected) {
-        rect.opacity(1);
+        this.updateShapeOpacity(shapeElement, 1);
         this.textElement.opacity(1);
-        rect.stroke(Node.defaultStyles.root.background);
-        rect.strokeWidth(2);
-        rect.dash([8, 4]);
-        rect.shadowColor("black");
-        rect.shadowBlur(10);
-        rect.shadowOpacity(0.4);
+        this.updateShapeStroke(shapeElement, Node.defaultStyles.root.background, 2, [8, 4]);
+        this.updateShapeShadow(shapeElement, "black", 10, 0.4);
       } else if (this.isActivated) {
-        rect.opacity(1);
+        this.updateShapeOpacity(shapeElement, 1);
         this.textElement.opacity(1);
-        rect.stroke("#2E9AFE");
-        rect.strokeWidth(3);
-        rect.dash([]);
-        rect.shadowColor("black");
-        rect.shadowBlur(10);
-        rect.shadowOpacity(0.4);
+        this.updateShapeStroke(shapeElement, "#2E9AFE", 3, []);
+        this.updateShapeShadow(shapeElement, "black", 10, 0.4);
       } else {
-        rect.opacity(1);
+        this.updateShapeOpacity(shapeElement, 1);
         this.textElement.opacity(1);
-        rect.stroke("#888");
-        rect.strokeWidth(1);
-        rect.dash([]);
-        rect.shadowColor("black");
-        rect.shadowBlur(10);
-        rect.shadowOpacity(0.4);
+        this.updateShapeStroke(shapeElement, "#888", 1, []);
+        this.updateShapeShadow(shapeElement, "black", 10, 0.4);
       }
 
-      rect.shadowOffset({
-        x: 4,
-        y: this.isCollapsed ? 3 : 4,
+      this.updateShapeShadowOffset(shapeElement, 4, this.isCollapsed ? 3 : 4);
+    }
+  }
+
+  private updateShapeStroke(shapeElement: Konva.Shape, color: string, width: number, dash: number[]): void {
+    if (shapeElement instanceof Konva.Group) {
+      // For cube shapes, update all child elements
+      shapeElement.getChildren().forEach((child) => {
+        if (child instanceof Konva.Shape) {
+          child.stroke(color);
+          child.strokeWidth(width);
+          child.dash(dash);
+        }
       });
+    } else {
+      // For regular shapes
+      shapeElement.stroke(color);
+      shapeElement.strokeWidth(width);
+      shapeElement.dash(dash);
+    }
+  }
+
+  private updateShapeOpacity(shapeElement: Konva.Shape, opacity: number): void {
+    shapeElement.opacity(opacity);
+  }
+
+  private updateShapeShadow(shapeElement: Konva.Shape, color: string, blur: number, opacity: number): void {
+    if (shapeElement instanceof Konva.Group) {
+      // For cube shapes, update the front face (first Rect child)
+      const frontFace = shapeElement.findOne("Rect") as Konva.Rect;
+      if (frontFace) {
+        frontFace.shadowColor(color);
+        frontFace.shadowBlur(blur);
+        frontFace.shadowOpacity(opacity);
+      }
+    } else {
+      shapeElement.shadowColor(color);
+      shapeElement.shadowBlur(blur);
+      shapeElement.shadowOpacity(opacity);
+    }
+  }
+
+  private updateShapeShadowOffset(shapeElement: Konva.Shape, x: number, y: number): void {
+    if (shapeElement instanceof Konva.Group) {
+      // For cube shapes, update the front face (first Rect child)
+      const frontFace = shapeElement.findOne("Rect") as Konva.Rect;
+      if (frontFace) {
+        frontFace.shadowOffset({ x, y });
+      }
+    } else {
+      shapeElement.shadowOffset({ x, y });
     }
   }
 

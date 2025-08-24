@@ -14,11 +14,12 @@ export enum NodeType {
   DEADLINE = "deadline",
   ROOT = "root",
   LINK = "link",
+  CUBE = "cube",
 }
 
 export interface NodeConfig {
   color: string;
-  shape: "rectangle" | "circle" | "diamond";
+  shape: "rectangle" | "circle" | "diamond" | "cube";
   clickBehavior?: (node: unknown) => void;
 }
 
@@ -46,6 +47,10 @@ export const NODE_CONFIGS: Record<NodeType, NodeConfig> = {
   [NodeType.LINK]: {
     color: "#2196F3",
     shape: "circle",
+  },
+  [NodeType.CUBE]: {
+    color: "#4CAF50",
+    shape: "cube",
   },
 };
 

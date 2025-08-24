@@ -143,6 +143,11 @@ export class ContextMenu {
             label: "⏰ Deadline",
             data: { type: NodeType.DEADLINE },
           },
+          {
+            id: "type-cube",
+            label: "🎲 Cube",
+            data: { type: NodeType.CUBE },
+          },
         ],
       },
       { separator: true, id: "sep2", label: "" },

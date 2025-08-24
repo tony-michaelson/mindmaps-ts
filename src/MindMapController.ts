@@ -105,6 +105,7 @@ export class MindmapController {
 
       this.createAndPositionNode(nodeId, position, text, type, text === "");
       this.nodeData.set(nodeId, data);
+      this.initializeCubeChildren(nodeId, type);
       this.updateChildrenMap(this.rootId!, nodeId);
 
       this.batchProcessor.addOperation({
@@ -139,6 +140,7 @@ export class MindmapController {
 
       this.createAndPositionNode(nodeId, position, text, type, text === "");
       this.nodeData.set(nodeId, data);
+      this.initializeCubeChildren(nodeId, type);
       this.updateChildrenMap(parentId, nodeId);
 
       this.batchProcessor.addOperation({
@@ -181,6 +183,7 @@ export class MindmapController {
       onLinkClick: type === NodeType.LINK ? () => this.onLinkClick?.(nodeId) : undefined,
       isLinkNode: type === NodeType.LINK,
       isNewNode: isNewNode,
+      nodeType: type,
     });
 
     this.konvaNodes.set(nodeId, node);
@@ -193,6 +196,23 @@ export class MindmapController {
     }
 
     this.setupNodeInteractions(nodeId);
+  }
+
+  private initializeCubeChildren(nodeId: string, type: NodeType): void {
+    if (type === NodeType.CUBE) {
+      const cubeData = this.nodeData.get(nodeId) || {};
+      if (!cubeData.cubeChildren) {
+        cubeData.cubeChildren = {
+          face1: null,
+          face2: null,
+          face3: null,
+          face4: null,
+          face5: null,
+          face6: null,
+        };
+        this.nodeData.set(nodeId, cubeData);
+      }
+    }
   }
 
   private updateChildrenMap(parentId: string, childId: string): void {
@@ -917,6 +937,46 @@ export class MindmapController {
 
   public setNodeData(nodeId: string, data: Record<string, unknown>): void {
     this.nodeData.set(nodeId, data);
+  }
+
+  public setCubeChildData(cubeNodeId: string, faceNumber: number, childData: Record<string, unknown>): void {
+    if (faceNumber < 1 || faceNumber > 6) {
+      throw new Error("Face number must be between 1 and 6");
+    }
+    
+    const nodeType = this.nodeTypes.get(cubeNodeId);
+    if (nodeType !== NodeType.CUBE) {
+      throw new Error("Node must be of type CUBE to set cube child data");
+    }
+
+    const cubeData = this.nodeData.get(cubeNodeId) || {};
+    if (!cubeData.cubeChildren) {
+      this.initializeCubeChildren(cubeNodeId, NodeType.CUBE);
+    }
+
+    const cubeChildren = cubeData.cubeChildren as Record<string, unknown>;
+    cubeChildren[`face${faceNumber}`] = childData;
+    this.nodeData.set(cubeNodeId, cubeData);
+  }
+
+  public getCubeChildData(cubeNodeId: string, faceNumber: number): Record<string, unknown> | null {
+    if (faceNumber < 1 || faceNumber > 6) {
+      throw new Error("Face number must be between 1 and 6");
+    }
+
+    const cubeData = this.nodeData.get(cubeNodeId) || {};
+    const cubeChildren = cubeData.cubeChildren as Record<string, unknown>;
+    
+    if (!cubeChildren) {
+      return null;
+    }
+
+    return (cubeChildren[`face${faceNumber}`] as Record<string, unknown>) || null;
+  }
+
+  public getAllCubeChildren(cubeNodeId: string): Record<string, Record<string, unknown> | null> {
+    const cubeData = this.nodeData.get(cubeNodeId) || {};
+    return (cubeData.cubeChildren as Record<string, Record<string, unknown> | null>) || {};
   }
 
   public getKonvaNode(nodeId: string) {

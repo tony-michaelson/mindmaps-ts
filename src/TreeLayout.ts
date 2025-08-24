@@ -96,8 +96,8 @@ export class TreeLayoutCalculator {
 
     const horizontal =
       side === "left"
-        ? -Math.min(parentWidth + horizontalSpacing, 150)
-        : Math.min(parentWidth + horizontalSpacing, 150);
+        ? -Math.min(parentWidth + horizontalSpacing + 50, 190) // hack to align better
+        : Math.min(parentWidth + horizontalSpacing + 50, 190); // hack to align better
     const positioned: SubtreeLayout[] = [];
 
     if (subtrees.length === 1) {
@@ -215,7 +215,7 @@ export class TreeLayoutCalculator {
       const rightLayout = this.calculateTree(rightTree, margin, "right");
       const rightResults = this.calculateAbsolutePositions(
         rightLayout,
-        rootX + rootNode.width / 2,
+        rootX + rootNode.width / 2 - 50, // hack to align better
         rootY - LAYOUT_CONFIG.height / 2
       );
 
@@ -246,7 +246,7 @@ export class TreeLayoutCalculator {
 
       const leftResults = tempLeftResults.map((result) => ({
         ...result,
-        x: rootX - rootNode.width / 2 - (maxRightEdge - result.x) - 70,
+        x: rootX - rootNode.width / 2 - (maxRightEdge - result.x) - 70, // hack to align better
         y: result.y,
       }));
 
