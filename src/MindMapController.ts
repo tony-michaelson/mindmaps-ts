@@ -594,7 +594,7 @@ export class MindmapController {
       const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX, dropY);
       if (shouldSwitchSides) {
         console.log(`🔄 Switching sides for node ${nodeId} based on drag position`);
-        this.moveRootChildToOppositeSide(nodeId);
+        this.moveRootChildToOppositeSide(nodeId, dropX, dropY);
         return;
       } else {
         console.log(`🤔 Side switch conditions not met, checking sibling reordering`);
@@ -613,7 +613,7 @@ export class MindmapController {
         const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX, dropY);
         if (shouldSwitchSides) {
           console.log(`🔄 Switching sides for node ${nodeId} based on drag position`);
-          this.moveRootChildToOppositeSide(nodeId);
+          this.moveRootChildToOppositeSide(nodeId, dropX, dropY);
           return;
         } else {
           console.log(`❌ Side switch conditions not met`);
@@ -974,7 +974,7 @@ export class MindmapController {
   }
 
   // Move a root child to the opposite side
-  public moveRootChildToOppositeSide(nodeId: string): void {
+  public moveRootChildToOppositeSide(nodeId: string, dropX?: number, dropY?: number): void {
     const nodePosition = this.positioner.getNodePosition(nodeId);
     if (!nodePosition) {
       console.warn('Node not found:', nodeId);
@@ -999,6 +999,11 @@ export class MindmapController {
     
     // Update the node's side and all its descendants
     this.updateNodeAndDescendantsSides(nodeId, newSide);
+    
+    // If drop coordinates provided, find optimal vertical position on new side
+    if (dropX !== undefined && dropY !== undefined) {
+      this.positionNodeOptimallyOnNewSide(nodeId, newSide, dropY);
+    }
     
     // Trigger layout recalculation to update positions
     const layoutResults = this.positioner.repositionSiblings(this.rootId!, this.rootX, this.rootY);
@@ -1057,6 +1062,80 @@ export class MindmapController {
     console.log(`🎯 Drop analysis: dropX=${dropX}, rootX=${rootCenterX}, currentSide=${currentSide}, distance=${distanceFromCenter}`);
     
     return shouldMoveToLeft || shouldMoveToRight;
+  }
+
+  private positionNodeOptimallyOnNewSide(nodeId: string, newSide: "left" | "right", dropY: number): void {
+    if (!this.rootId) return;
+    
+    // Get all siblings on the new side (excluding the node being moved)
+    const allRootChildren = this.positioner.getChildren(this.rootId);
+    const newSideSiblings = allRootChildren.filter(siblingId => {
+      if (siblingId === nodeId) return false; // Exclude the node being moved
+      const siblingPosition = this.positioner.getNodePosition(siblingId);
+      return siblingPosition && siblingPosition.side === newSide;
+    });
+
+    console.log(`🎯 Positioning node on ${newSide} side among ${newSideSiblings.length} siblings`);
+
+    if (newSideSiblings.length === 0) {
+      console.log(`📍 No siblings on ${newSide} side - node will be positioned normally`);
+      return; // No siblings to position relative to
+    }
+
+    // Find the optimal insertion index based on dropY
+    let insertIndex = 0;
+    let minDistance = Infinity;
+
+    newSideSiblings.forEach((siblingId, index) => {
+      const siblingPosition = this.positioner.getNodePosition(siblingId);
+      if (!siblingPosition) return;
+
+      // Calculate distance between drop position and sibling
+      const distance = Math.abs(dropY - siblingPosition.y);
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        // Determine if we should insert above or below this sibling
+        if (dropY < siblingPosition.y) {
+          insertIndex = index; // Insert above (before) this sibling
+        } else {
+          insertIndex = index + 1; // Insert below (after) this sibling
+        }
+      }
+    });
+
+    console.log(`📐 Optimal insertion index: ${insertIndex} out of ${newSideSiblings.length} siblings`);
+
+    // Reorder the children array to place the moved node at the optimal position
+    // First, remove the node from current position
+    this.positioner.removeFromChildrenMap(this.rootId, nodeId);
+    
+    // Get updated root children (without the moved node)
+    const updatedRootChildren = this.positioner.getChildren(this.rootId);
+    
+    // Separate into left and right sides
+    const leftSideNodes = updatedRootChildren.filter(childId => {
+      const childPosition = this.positioner.getNodePosition(childId);
+      return childPosition && childPosition.side === "left";
+    });
+    
+    const rightSideNodes = updatedRootChildren.filter(childId => {
+      const childPosition = this.positioner.getNodePosition(childId);
+      return childPosition && childPosition.side === "right";
+    });
+
+    // Insert the moved node into the correct side at the optimal index
+    if (newSide === "left") {
+      leftSideNodes.splice(insertIndex, 0, nodeId);
+    } else {
+      rightSideNodes.splice(insertIndex, 0, nodeId);
+    }
+
+    // Rebuild the complete children array (left side first, then right side)
+    const reorderedChildren = [...leftSideNodes, ...rightSideNodes];
+    this.positioner.setChildrenArray(this.rootId, reorderedChildren);
+    
+    console.log(`✅ Reordered children for optimal positioning`);
   }
 
   public clearCaches(): void {
