@@ -1,6 +1,7 @@
 import Konva from "konva";
 import { MindmapController } from "./MindMapController";
 import { NodeType } from "./NodePosition";
+import { ContextMenu, MenuActionHandler, MenuContext } from "./ContextMenu";
 
 export enum ActionType {
   NODE_ADD = "Node::Add",
@@ -23,6 +24,7 @@ export class MindMap {
   private selectedNodeId: string | null = null;
   private callbacks: Map<ActionType, CallbackFunction[]> = new Map();
   private defaultNodeType: NodeType = NodeType.TASK;
+  private contextMenu: ContextMenu;
 
   constructor(containerId: string, width: number, height: number) {
     this.stage = new Konva.Stage({
@@ -45,6 +47,9 @@ export class MindMap {
       this.centerY
     );
 
+    // Initialize context menu
+    this.contextMenu = new ContextMenu(this.handleMenuAction.bind(this));
+
     // Set up selection callback
     this.controller.onNodeSelected = async (nodeId: string | null) => {
       this.selectedNodeId = nodeId;
@@ -54,7 +59,7 @@ export class MindMap {
     };
 
     // Set up text change callback
-    this.controller.onNodeTextChange = async (nodeId: string, newText: string) => {
+    this.controller.onNodeTextChange = async (nodeId: string, _newText: string) => {
       await this.triggerCallbacks(ActionType.NODE_TITLE_CHANGE, nodeId);
     };
 
@@ -64,8 +69,9 @@ export class MindMap {
     };
 
     // Set up right-click callback
-    this.controller.onNodeRightClick = async (nodeId: string) => {
+    this.controller.onNodeRightClick = async (nodeId: string, x: number, y: number) => {
       await this.triggerCallbacks(ActionType.NODE_RIGHT_CLICK, nodeId);
+      this.showContextMenu(nodeId, x, y);
     };
 
     this.initEvents();
@@ -329,6 +335,71 @@ export class MindMap {
 
     await Promise.all(promises);
   }
+
+  private showContextMenu(nodeId: string, x: number, y: number): void {
+    const nodeText = this.controller.getNodeText(nodeId) || "";
+    const nodeType = this.controller.getNodeType(nodeId) || NodeType.TASK;
+    const rootChildren = this.controller.getRootChildren();
+    const isRootChild = rootChildren.some(child => child.nodeId === nodeId);
+    const rootId = this.controller.getRootId();
+    const canMoveToOppositeSide = isRootChild && nodeId !== rootId;
+
+    const context: MenuContext = {
+      nodeId,
+      nodeText,
+      nodeType,
+      isRootChild,
+      canMoveToOppositeSide
+    };
+
+    this.contextMenu.show({ x, y }, context);
+  }
+
+  private handleMenuAction: MenuActionHandler = (action: string, nodeId: string, data?: any) => {
+    switch (action) {
+      case 'edit':
+        const node = this.controller.getKonvaNode(nodeId);
+        if (node) {
+          node.startEditing();
+        }
+        break;
+      
+      case 'type-task':
+      case 'type-idea':
+      case 'type-resource':
+      case 'type-deadline':
+        if (data?.type) {
+          this.controller.changeNodeType(nodeId, data.type);
+          this.layer.draw();
+        }
+        break;
+      
+      case 'add-child':
+        this.addChildToNode(nodeId);
+        break;
+      
+      case 'add-sibling':
+        const parentId = this.controller.getParentId(nodeId);
+        if (parentId) {
+          this.addChildToNode(parentId);
+        } else {
+          // If no parent, add to root
+          const rootChildren = this.controller.getRootChildren();
+          const nodeChild = rootChildren.find(child => child.nodeId === nodeId);
+          const side = nodeChild?.side || "right";
+          this.addRootChild("", undefined, side);
+        }
+        break;
+      
+      case 'move-opposite':
+        this.moveRootChildToOppositeSide(nodeId);
+        break;
+      
+      case 'delete':
+        this.removeNode(nodeId);
+        break;
+    }
+  };
 
   private getNodeDataAsJson(nodeId: string): string {
     const treeStructure = this.controller.getTreeStructure();

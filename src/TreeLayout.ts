@@ -273,7 +273,7 @@ export class TreeLayoutCalculator {
       // Position all left nodes so their right edges align at the calculated distance from root
       const leftResults = tempLeftResults.map((result) => ({
         ...result,
-        x: rootX - rootNode.width / 2 - (maxRightEdge - result.x) - 50, // Align right edges consistently
+        x: rootX - rootNode.width / 2 - (maxRightEdge - result.x) - 70, // Align right edges consistently
         y: result.y,
       }));
 

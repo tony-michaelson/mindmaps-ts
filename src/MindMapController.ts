@@ -32,7 +32,7 @@ export class MindmapController {
   public onNodeSelected?: (nodeId: string | null) => void;
   public onNodeTextChange?: (nodeId: string, newText: string) => void;
   public onNodeDoubleClick?: (nodeId: string) => void;
-  public onNodeRightClick?: (nodeId: string) => void;
+  public onNodeRightClick?: (nodeId: string, x: number, y: number) => void;
 
   constructor(layer: Konva.Layer, rootX: number, rootY: number) {
     this.layer = layer;
@@ -153,7 +153,7 @@ export class MindmapController {
       onTextChange: (newText: string) => this.handleNodeTextChange(nodeId, newText),
       onSizeChange: () => this.handleNodeSizeChange(nodeId),
       onDoubleClick: () => this.onNodeDoubleClick?.(nodeId),
-      onRightClick: () => this.onNodeRightClick?.(nodeId),
+      onRightClick: (x: number, y: number) => this.onNodeRightClick?.(nodeId, x, y),
     });
 
     this.konvaNodes.set(nodeId, node);
@@ -949,6 +949,64 @@ export class MindmapController {
   public getParentId(nodeId: string): string | null {
     const position = this.positioner.getNodePosition(nodeId);
     return position?.parentId || null;
+  }
+
+  public getNodeText(nodeId: string): string | null {
+    const node = this.konvaNodes.get(nodeId);
+    return node ? node.getText() : null;
+  }
+
+  public getNodeType(nodeId: string): NodeType | null {
+    return this.nodeTypes.get(nodeId) || null;
+  }
+
+  public getKonvaNode(nodeId: string) {
+    return this.konvaNodes.get(nodeId);
+  }
+
+  public changeNodeType(nodeId: string, newType: NodeType): void {
+    const node = this.konvaNodes.get(nodeId);
+    
+    if (!node) return;
+
+    // Get the current position and text before removing
+    const group = node.getGroup();
+    const currentX = group.x();
+    const currentY = group.y();
+    const currentText = node.getText();
+
+    // Update the type mapping
+    this.nodeTypes.set(nodeId, newType);
+
+    // Remove the old node
+    node.remove();
+    this.konvaNodes.delete(nodeId);
+
+    // Create a new node at the exact same position
+    const config = NODE_CONFIGS[newType];
+    const truncatedText = this.formatNodeText(currentText);
+
+    const newNode = new Node({
+      x: currentX,
+      y: currentY,
+      text: truncatedText,
+      isRoot: newType === NodeType.ROOT,
+      layer: this.layer,
+      customColor: config.color,
+      onTextChange: (newText: string) => this.handleNodeTextChange(nodeId, newText),
+      onSizeChange: () => this.handleNodeSizeChange(nodeId),
+      onDoubleClick: () => this.onNodeDoubleClick?.(nodeId),
+      onRightClick: (x: number, y: number) => this.onNodeRightClick?.(nodeId, x, y),
+    });
+
+    this.konvaNodes.set(nodeId, newNode);
+
+    // Update the positioner with the node's actual dimensions after creation
+    const newGroup = newNode.getGroup();
+    const rect = newGroup.findOne('Rect') as Konva.Rect;
+    if (rect) {
+      this.positioner.updateNodeDimensions(nodeId, rect.width(), rect.height());
+    }
   }
 
   // Move a root child to the opposite side

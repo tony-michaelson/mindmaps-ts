@@ -18,7 +18,7 @@ export class Node {
   private onTextChange?: (newText: string) => void;
   private onSizeChange?: () => void;
   private onDoubleClick?: () => void;
-  private onRightClick?: () => void;
+  private onRightClick?: (x: number, y: number) => void;
 
   // Default styles from layout.js
   private static readonly defaultStyles = {
@@ -36,7 +36,7 @@ export class Node {
     onTextChange?: (newText: string) => void;
     onSizeChange?: () => void;
     onDoubleClick?: () => void;
-    onRightClick?: () => void;
+    onRightClick?: (x: number, y: number) => void;
   }) {
     const { x, y, text, isRoot = false, layer, customColor, onTextChange, onSizeChange, onDoubleClick, onRightClick } = params;
     this.onTextChange = onTextChange;
@@ -312,7 +312,7 @@ export class Node {
     this.group.on('contextmenu', (e) => {
       e.evt.preventDefault();
       if (this.onRightClick) {
-        this.onRightClick();
+        this.onRightClick(e.evt.clientX, e.evt.clientY);
       }
     });
   }

@@ -8,6 +8,28 @@
         margin: 0;
         overflow: hidden;
       }
+
+      /* Context Menu Styles */
+      .mindmap-context-menu .menu-item {
+        transition: background-color 0.2s ease;
+      }
+
+      .mindmap-context-menu .menu-item:hover:not(.disabled) {
+        background-color: #f0f0f0;
+      }
+
+      .mindmap-context-menu .menu-item.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .mindmap-context-menu .menu-item.has-submenu:hover .submenu {
+        display: block !important;
+      }
+
+      .mindmap-context-menu .submenu .menu-item:hover {
+        background-color: #e8f4fd;
+      }
     </style>
   </head>
   <body>
