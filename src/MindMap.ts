@@ -5,12 +5,12 @@ import { ContextMenu, MenuActionHandler, MenuContext } from "./ContextMenu";
 
 export enum ActionType {
   NODE_ADD = "Node::Add",
-  NODE_DELETE = "Node::Delete", 
+  NODE_DELETE = "Node::Delete",
   NODE_TITLE_CHANGE = "Node::TitleChange",
   NODE_MOVE = "Node::Move",
   NODE_CLICK = "Node::Click",
   NODE_DOUBLE_CLICK = "Node::DblClick",
-  NODE_RIGHT_CLICK = "Node::RightClick"
+  NODE_RIGHT_CLICK = "Node::RightClick",
 }
 
 export type CallbackFunction = (nodeData: string) => void | Promise<void>;
@@ -36,21 +36,17 @@ export class MindMap {
     this.layer = new Konva.Layer();
     this.stage.add(this.layer);
 
-    // Calculate center position
     this.centerX = width / 2;
     this.centerY = height / 2;
 
-    // Initialize controller
     this.controller = new MindmapController(
       this.layer,
       this.centerX,
       this.centerY
     );
 
-    // Initialize context menu
     this.contextMenu = new ContextMenu(this.handleMenuAction.bind(this));
 
-    // Set up selection callback
     this.controller.onNodeSelected = async (nodeId: string | null) => {
       this.selectedNodeId = nodeId;
       if (nodeId) {
@@ -58,18 +54,22 @@ export class MindMap {
       }
     };
 
-    // Set up text change callback
-    this.controller.onNodeTextChange = async (nodeId: string, _newText: string) => {
+    this.controller.onNodeTextChange = async (
+      nodeId: string,
+      _newText: string
+    ) => {
       await this.triggerCallbacks(ActionType.NODE_TITLE_CHANGE, nodeId);
     };
 
-    // Set up double-click callback
     this.controller.onNodeDoubleClick = async (nodeId: string) => {
       await this.triggerCallbacks(ActionType.NODE_DOUBLE_CLICK, nodeId);
     };
 
-    // Set up right-click callback
-    this.controller.onNodeRightClick = async (nodeId: string, x: number, y: number) => {
+    this.controller.onNodeRightClick = async (
+      nodeId: string,
+      x: number,
+      y: number
+    ) => {
       await this.triggerCallbacks(ActionType.NODE_RIGHT_CLICK, nodeId);
       this.showContextMenu(nodeId, x, y);
     };
@@ -79,26 +79,21 @@ export class MindMap {
   }
 
   private initEvents(): void {
-    // Enable stage dragging for panning the mindmap
     this.stage.draggable(true);
 
-    // Add click handler for stage to deselect nodes and finish editing
-    this.stage.on('click', (e) => {
-      // Only handle clicks on the stage itself, not on nodes
+    this.stage.on("click", (e) => {
       if (e.target === this.stage) {
         this.controller.deselectAllNodes();
       }
     });
 
-    // Add keyboard shortcuts
     this.initKeyboardShortcuts();
   }
 
   private initKeyboardShortcuts(): void {
     window.addEventListener("keydown", (e) => {
       const isEditing = this.controller.isAnyNodeEditing();
-      
-      // Only handle shortcuts when no input is focused and no node is being edited
+
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA" ||
@@ -139,68 +134,75 @@ export class MindMap {
   }
 
   private async addNodeToSide(side: "left" | "right"): Promise<void> {
-    const nodeText = ""; // Start with empty text for immediate editing
+    const nodeText = "";
     const nodeType = this.defaultNodeType;
 
     try {
       const nodeId = this.controller.addNodeToRoot(nodeText, nodeType, side);
-      // Select the newly created node
+
       this.controller.selectNode(nodeId);
       this.layer.draw();
       await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
-  private async addChildToSelected(text: string = "", type?: NodeType): Promise<void> {
+  private async addChildToSelected(
+    text: string = "",
+    type?: NodeType
+  ): Promise<void> {
     const nodeType = type || this.defaultNodeType;
     if (this.selectedNodeId) {
-      // Add child to the selected node
       try {
-        const nodeId = this.controller.addNodeToExisting(this.selectedNodeId, text, nodeType);
-        // Select the newly created child node
+        const nodeId = this.controller.addNodeToExisting(
+          this.selectedNodeId,
+          text,
+          nodeType
+        );
+
         this.controller.selectNode(nodeId);
         this.layer.draw();
         await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
       } catch (error) {
-        // Fallback to adding to root
         await this.addRootChild(text, nodeType);
       }
     } else {
-      // No node selected, add to root
       await this.addRootChild(text, nodeType);
     }
   }
 
-  private async addSiblingToSelected(text: string = "", type?: NodeType): Promise<void> {
+  private async addSiblingToSelected(
+    text: string = "",
+    type?: NodeType
+  ): Promise<void> {
     const nodeType = type || this.defaultNodeType;
     if (this.selectedNodeId) {
-      // Find the parent of the selected node to add a sibling
       const parentId = this.controller.getParentId(this.selectedNodeId);
-      
+
       if (parentId) {
-        // Add sibling by adding to the parent
         try {
-          const nodeId = this.controller.addNodeToExisting(parentId, text, nodeType);
-          // Select the newly created sibling node
+          const nodeId = this.controller.addNodeToExisting(
+            parentId,
+            text,
+            nodeType
+          );
+
           this.controller.selectNode(nodeId);
           this.layer.draw();
           await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
         } catch (error) {
-          // Fallback to adding to root
           await this.addRootChild(text, nodeType);
         }
       } else {
-        // Selected node is root or has no parent, add to root side
         const rootChildren = this.controller.getRootChildren();
-        const selectedChild = rootChildren.find(child => child.nodeId === this.selectedNodeId);
+        const selectedChild = rootChildren.find(
+          (child) => child.nodeId === this.selectedNodeId
+        );
         const side = selectedChild?.side || "right";
         const nodeId = await this.addRootChild(text, nodeType, side);
-        // Select the newly created root child
+
         this.controller.selectNode(nodeId);
       }
     } else {
-      // No node selected, add to root
       await this.addRootChild(text, nodeType);
     }
   }
@@ -208,21 +210,16 @@ export class MindMap {
   private async deleteSelectedNode(): Promise<void> {
     const selectedNodeId = this.controller.getSelectedNodeId();
     const rootId = this.controller.getRootId();
-    
-    // Don't allow deleting the root node
+
     if (!selectedNodeId || selectedNodeId === rootId) {
       return;
     }
-    
-    // Trigger callback before removing the node
+
     await this.triggerCallbacks(ActionType.NODE_DELETE, selectedNodeId);
-    
-    // Remove the selected node
+
     this.controller.removeNode(selectedNodeId);
   }
 
-
-  // Public API methods
   public createRoot(text: string): string {
     return this.controller.createRootNode(text);
   }
@@ -268,7 +265,11 @@ export class MindMap {
     return this.controller.getRootId();
   }
 
-  public getRootChildren(): Array<{nodeId: string, side: "left" | "right", text: string}> {
+  public getRootChildren(): Array<{
+    nodeId: string;
+    side: "left" | "right";
+    text: string;
+  }> {
     return this.controller.getRootChildren();
   }
 
@@ -281,7 +282,6 @@ export class MindMap {
     this.selectedNodeId = null;
   }
 
-  // Utility methods for external control
   public getStage(): Konva.Stage {
     return this.stage;
   }
@@ -302,14 +302,20 @@ export class MindMap {
     return this.defaultNodeType;
   }
 
-  public registerCallback(actionType: ActionType, callback: CallbackFunction): void {
+  public registerCallback(
+    actionType: ActionType,
+    callback: CallbackFunction
+  ): void {
     if (!this.callbacks.has(actionType)) {
       this.callbacks.set(actionType, []);
     }
     this.callbacks.get(actionType)!.push(callback);
   }
 
-  public unregisterCallback(actionType: ActionType, callback: CallbackFunction): void {
+  public unregisterCallback(
+    actionType: ActionType,
+    callback: CallbackFunction
+  ): void {
     const callbacks = this.callbacks.get(actionType);
     if (callbacks) {
       const index = callbacks.indexOf(callback);
@@ -319,12 +325,15 @@ export class MindMap {
     }
   }
 
-  private async triggerCallbacks(actionType: ActionType, nodeId: string): Promise<void> {
+  private async triggerCallbacks(
+    actionType: ActionType,
+    nodeId: string
+  ): Promise<void> {
     const callbacks = this.callbacks.get(actionType);
     if (!callbacks || callbacks.length === 0) return;
 
     const nodeData = this.getNodeDataAsJson(nodeId);
-    const promises = callbacks.map(callback => {
+    const promises = callbacks.map((callback) => {
       try {
         const result = callback(nodeData);
         return Promise.resolve(result);
@@ -340,7 +349,7 @@ export class MindMap {
     const nodeText = this.controller.getNodeText(nodeId) || "";
     const nodeType = this.controller.getNodeType(nodeId) || NodeType.TASK;
     const rootChildren = this.controller.getRootChildren();
-    const isRootChild = rootChildren.some(child => child.nodeId === nodeId);
+    const isRootChild = rootChildren.some((child) => child.nodeId === nodeId);
     const rootId = this.controller.getRootId();
     const canMoveToOppositeSide = isRootChild && nodeId !== rootId;
 
@@ -349,53 +358,58 @@ export class MindMap {
       nodeText,
       nodeType,
       isRootChild,
-      canMoveToOppositeSide
+      canMoveToOppositeSide,
     };
 
     this.contextMenu.show({ x, y }, context);
   }
 
-  private handleMenuAction: MenuActionHandler = (action: string, nodeId: string, data?: any) => {
+  private handleMenuAction: MenuActionHandler = (
+    action: string,
+    nodeId: string,
+    data?: any
+  ) => {
     switch (action) {
-      case 'edit':
+      case "edit":
         const node = this.controller.getKonvaNode(nodeId);
         if (node) {
           node.startEditing();
         }
         break;
-      
-      case 'type-task':
-      case 'type-idea':
-      case 'type-resource':
-      case 'type-deadline':
+
+      case "type-task":
+      case "type-idea":
+      case "type-resource":
+      case "type-deadline":
         if (data?.type) {
           this.controller.changeNodeType(nodeId, data.type);
           this.layer.draw();
         }
         break;
-      
-      case 'add-child':
+
+      case "add-child":
         this.addChildToNode(nodeId);
         break;
-      
-      case 'add-sibling':
+
+      case "add-sibling":
         const parentId = this.controller.getParentId(nodeId);
         if (parentId) {
           this.addChildToNode(parentId);
         } else {
-          // If no parent, add to root
           const rootChildren = this.controller.getRootChildren();
-          const nodeChild = rootChildren.find(child => child.nodeId === nodeId);
+          const nodeChild = rootChildren.find(
+            (child) => child.nodeId === nodeId
+          );
           const side = nodeChild?.side || "right";
           this.addRootChild("", undefined, side);
         }
         break;
-      
-      case 'move-opposite':
+
+      case "move-opposite":
         this.moveRootChildToOppositeSide(nodeId);
         break;
-      
-      case 'delete':
+
+      case "delete":
         this.removeNode(nodeId);
         break;
     }
@@ -411,7 +425,7 @@ export class MindMap {
     if (node.id === targetId) {
       return node;
     }
-    
+
     if (node.children && Array.isArray(node.children)) {
       for (const child of node.children) {
         const found = this.findNodeInTree(child, targetId);
@@ -420,7 +434,7 @@ export class MindMap {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -428,88 +442,84 @@ export class MindMap {
     const exportData = {
       timestamp: new Date().toISOString(),
       defaultNodeType: this.defaultNodeType,
-      tree: this.controller.getTreeStructure()
+      tree: this.controller.getTreeStructure(),
     };
-    
+
     return JSON.stringify(exportData, null, 2);
   }
 
   public importFromJson(jsonString: string): void {
     try {
       const importData = JSON.parse(jsonString);
-      
-      // Validate the import data structure
-      if (!importData || typeof importData !== 'object') {
-        throw new Error('Invalid JSON format: Expected object');
+
+      if (!importData || typeof importData !== "object") {
+        throw new Error("Invalid JSON format: Expected object");
       }
-      
+
       if (!importData.tree) {
-        throw new Error('Invalid JSON format: Missing tree data');
+        throw new Error("Invalid JSON format: Missing tree data");
       }
-      
-      // Set default node type if present
-      if (importData.defaultNodeType && Object.values(NodeType).includes(importData.defaultNodeType)) {
+
+      if (
+        importData.defaultNodeType &&
+        Object.values(NodeType).includes(importData.defaultNodeType)
+      ) {
         this.defaultNodeType = importData.defaultNodeType;
       }
-      
-      // Validate tree structure
+
       this.validateTreeStructure(importData.tree);
-      
-      // Import the tree
+
       this.controller.importFromTreeStructure(importData.tree);
-      
-      // Redraw the layer
+
       this.layer.draw();
-      
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Import failed: ${error.message}`);
       } else {
-        throw new Error('Import failed: Unknown error');
+        throw new Error("Import failed: Unknown error");
       }
     }
   }
 
   private validateTreeStructure(tree: any): void {
-    if (!tree || typeof tree !== 'object') {
-      throw new Error('Invalid tree structure: Expected object');
+    if (!tree || typeof tree !== "object") {
+      throw new Error("Invalid tree structure: Expected object");
     }
-    
-    // Required fields
-    const requiredFields = ['id', 'text', 'type', 'level', 'side', 'children'];
+
+    const requiredFields = ["id", "text", "type", "level", "side", "children"];
     for (const field of requiredFields) {
       if (!(field in tree)) {
         throw new Error(`Invalid tree structure: Missing field '${field}'`);
       }
     }
-    
-    if (typeof tree.id !== 'string') {
-      throw new Error('Invalid tree structure: id must be a string');
+
+    if (typeof tree.id !== "string") {
+      throw new Error("Invalid tree structure: id must be a string");
     }
-    
-    if (typeof tree.text !== 'string') {
-      throw new Error('Invalid tree structure: text must be a string');
+
+    if (typeof tree.text !== "string") {
+      throw new Error("Invalid tree structure: text must be a string");
     }
-    
-    if (typeof tree.type !== 'string') {
-      throw new Error('Invalid tree structure: type must be a string');
+
+    if (typeof tree.type !== "string") {
+      throw new Error("Invalid tree structure: type must be a string");
     }
-    
+
     if (!Array.isArray(tree.children)) {
-      throw new Error('Invalid tree structure: children must be an array');
+      throw new Error("Invalid tree structure: children must be an array");
     }
-    
-    // Recursively validate children
+
     tree.children.forEach((child: any, index: number) => {
       try {
         this.validateTreeStructure(child);
       } catch (error) {
         if (error instanceof Error) {
-          throw new Error(`Invalid tree structure in child ${index}: ${error.message}`);
+          throw new Error(
+            `Invalid tree structure in child ${index}: ${error.message}`
+          );
         }
         throw error;
       }
     });
   }
-
 }

@@ -30,13 +30,11 @@ export interface SubtreeLayout {
 }
 
 export class TreeLayoutCalculator {
-  // Calculate layout for a single tree (either left or right side)
   calculateTree(
     node: TreeNode,
     margin: number = LAYOUT_CONFIG.verticalSpacing,
     side: "left" | "right" = "right"
   ): SubtreeLayout {
-    // Base case: leaf node
     if (node.children.length === 0) {
       const outline = Outline.forRectangle(node.width, node.height);
       return {
@@ -52,12 +50,10 @@ export class TreeLayoutCalculator {
       };
     }
 
-    // Recursively calculate child layouts
     const childLayouts = node.children.map((child) =>
       this.calculateTree(child, margin, side)
     );
 
-    // Position children with outline-based collision avoidance
     const positionedChildren = this.appendSubtrees(
       childLayouts,
       node.width,
@@ -65,7 +61,6 @@ export class TreeLayoutCalculator {
       side
     );
 
-    // Create combined outline for this subtree
     const nodeOutline = Outline.forRectangle(node.width, node.height);
     const combinedOutline = this.combineNodeWithChildren(
       nodeOutline,
@@ -86,7 +81,6 @@ export class TreeLayoutCalculator {
     };
   }
 
-  // Append child subtrees with proper vertical spacing to avoid collisions
   private appendSubtrees(
     subtrees: SubtreeLayout[],
     parentWidth: number,
@@ -95,13 +89,12 @@ export class TreeLayoutCalculator {
   ): SubtreeLayout[] {
     if (subtrees.length === 0) return [];
 
-    // Calculate horizontal spacing based on the widest sibling node
     const maxChildWidth = Math.max(...subtrees.map((subtree) => subtree.width));
     const horizontalSpacing = Math.max(
       LAYOUT_CONFIG.horizontalSpacing,
       maxChildWidth * 0.3 + LAYOUT_CONFIG.horizontalSpacing
     );
-    // For left side, position children to the left of parent
+
     const horizontal =
       side === "left"
         ? -Math.min(parentWidth + horizontalSpacing, 150)
@@ -109,7 +102,6 @@ export class TreeLayoutCalculator {
     const positioned: SubtreeLayout[] = [];
 
     if (subtrees.length === 1) {
-      // Single child aligns with parent
       positioned.push({
         ...subtrees[0],
         deltaX: horizontal,
@@ -118,18 +110,15 @@ export class TreeLayoutCalculator {
       return positioned;
     }
 
-    // Multiple children: calculate total height and center around parent
     let totalHeight = 0;
 
-    // Calculate required height for all subtrees with spacing
     subtrees.forEach((subtree, index) => {
       totalHeight += subtree.outline.initialHeight();
       if (index < subtrees.length - 1) {
-        totalHeight += margin; // Add spacing between subtrees
+        totalHeight += margin;
       }
     });
 
-    // Start positioning from top, centered around parent
     let currentY = -totalHeight / 2;
 
     subtrees.forEach((subtree) => {
@@ -148,7 +137,6 @@ export class TreeLayoutCalculator {
     return positioned;
   }
 
-  // Combine node outline with its children outlines
   private combineNodeWithChildren(
     nodeOutline: Outline,
     children: SubtreeLayout[],
@@ -158,10 +146,8 @@ export class TreeLayoutCalculator {
       return nodeOutline;
     }
 
-    // Start with the node outline
     let combinedOutline = nodeOutline;
 
-    // Combine with each child's outline
     children.forEach((child) => {
       const childOutline = child.outline.translate(child.deltaX, child.deltaY);
       combinedOutline = combinedOutline.combineHorizontally(childOutline, 0);
@@ -170,7 +156,6 @@ export class TreeLayoutCalculator {
     return combinedOutline;
   }
 
-  // Calculate final absolute positions from relative deltas
   calculateAbsolutePositions(
     layout: SubtreeLayout,
     parentX: number = 0,
@@ -181,7 +166,6 @@ export class TreeLayoutCalculator {
     const absoluteX = parentX + layout.deltaX;
     const absoluteY = parentY + layout.deltaY;
 
-    // Add this node
     results.push({
       nodeId: layout.nodeId,
       x: absoluteX,
@@ -191,7 +175,6 @@ export class TreeLayoutCalculator {
       outline: layout.outline,
     });
 
-    // Recursively process children
     layout.children.forEach((child) => {
       const childResults = this.calculateAbsolutePositions(
         child,
@@ -204,7 +187,6 @@ export class TreeLayoutCalculator {
     return results;
   }
 
-  // Main layout function that handles both sides
   calculateLayout(
     leftNodes: TreeNode[],
     rightNodes: TreeNode[],
@@ -215,7 +197,6 @@ export class TreeLayoutCalculator {
     const results: LayoutResult[] = [];
     const margin = LAYOUT_CONFIG.verticalSpacing;
 
-    // Add root node
     results.push({
       nodeId: rootNode.id,
       x: rootX - rootNode.width / 2,
@@ -225,7 +206,6 @@ export class TreeLayoutCalculator {
       outline: Outline.forRectangle(rootNode.width, rootNode.height),
     });
 
-    // Calculate right side layout
     if (rightNodes.length > 0) {
       const rightTree: TreeNode = {
         id: "right-container",
@@ -241,13 +221,11 @@ export class TreeLayoutCalculator {
         rootY - LAYOUT_CONFIG.height / 2
       );
 
-      // Filter out the container node, only add actual nodes
       results.push(
         ...rightResults.filter((r) => r.nodeId !== "right-container")
       );
     }
 
-    // Calculate left side layout (mirror of right side)
     if (leftNodes.length > 0) {
       const leftTree: TreeNode = {
         id: "left-container",
@@ -258,22 +236,19 @@ export class TreeLayoutCalculator {
 
       const leftLayout = this.calculateTree(leftTree, margin, "left");
 
-      // For left side, calculate positions then mirror to align right edges
       const tempLeftResults = this.calculateAbsolutePositions(
         leftLayout,
-        0, // Calculate from origin first
+        0,
         rootY - LAYOUT_CONFIG.height / 2
       ).filter((r) => r.nodeId !== "left-container");
 
-      // Find the rightmost position of any left-side node (this will be our alignment axis)
       const maxRightEdge = Math.max(
         ...tempLeftResults.map((r) => r.x + r.width)
       );
 
-      // Position all left nodes so their right edges align at the calculated distance from root
       const leftResults = tempLeftResults.map((result) => ({
         ...result,
-        x: rootX - rootNode.width / 2 - (maxRightEdge - result.x) - 70, // Align right edges consistently
+        x: rootX - rootNode.width / 2 - (maxRightEdge - result.x) - 70,
         y: result.y,
       }));
 

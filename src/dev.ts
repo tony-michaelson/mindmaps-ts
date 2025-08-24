@@ -1,33 +1,11 @@
 import { MindMap } from "./MindMap";
 import { NodeType } from "./NodePosition";
 
-// Create the mindmap
 const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 
-// // Add nodes to the right side
-// const taskId = mindMap.addRootChild("Project Tasks", NodeType.TASK, "right");
-// const ideaId = mindMap.addRootChild("Brainstorming", NodeType.IDEA, "right");
-
-// // Add nodes to the left side
-// const resourceId = mindMap.addRootChild("Resources", NodeType.RESOURCE, "left");
-// const deadlineId = mindMap.addRootChild("Deadlines", NodeType.DEADLINE, "left");
-
-// // Add child nodes to demonstrate hierarchical positioning
-// mindMap.addChildToNode(taskId, "Design UI", NodeType.TASK);
-// mindMap.addChildToNode(taskId, "Implement Backend", NodeType.TASK);
-// mindMap.addChildToNode(taskId, "Write Tests", NodeType.TASK);
-
-// mindMap.addChildToNode(ideaId, "User Research", NodeType.IDEA);
-// mindMap.addChildToNode(ideaId, "Competitor Analysis", NodeType.IDEA);
-
-// mindMap.addChildToNode(resourceId, "Design System", NodeType.RESOURCE);
-// mindMap.addChildToNode(resourceId, "API Documentation", NodeType.RESOURCE);
-
-// Expose mindMap globally for debugging and testing
 (window as any).mindMap = mindMap;
 (window as any).NodeType = NodeType;
 
-// Add some helper functions for demo purposes
 (window as any).addRandomNode = (side: "left" | "right" = "right") => {
   const topics = [
     "The fix ensures that when text editing finishes, siblings will reposition based on the edited node's new dimensions,  ma",
@@ -44,15 +22,12 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   const randomTopic = topics[Math.floor(Math.random() * topics.length)];
   const randomType = types[Math.floor(Math.random() * types.length)];
 
-  // Get selected node ID from the controller
   const selectedNodeId = mindMap.getController().getSelectedNodeId();
   const rootId = mindMap.getController().getRootId();
 
   if (selectedNodeId && selectedNodeId !== rootId) {
-    // Add child to selected non-root node (ignore side parameter)
     return mindMap.addChildToNode(selectedNodeId, randomTopic, randomType);
   } else {
-    // No selection or root selected, add to specified side of root
     return mindMap.addRootChild(randomTopic, randomType, side);
   }
 };
@@ -67,35 +42,32 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   return mindMap.addChildToNode(parentId, randomTopic, randomType);
 };
 
-// Cache management function
 (window as any).clearCaches = () => {
   mindMap.getController().clearCaches();
   console.log("🧹 Caches cleared!");
 };
 
-// Move root child to opposite side
 (window as any).moveToOppositeSide = (nodeId: string) => {
   mindMap.moveRootChildToOppositeSide(nodeId);
   console.log(`🔄 Moved node ${nodeId} to opposite side`);
 };
 
-// List all root children with their sides
 (window as any).listRootChildren = () => {
   const children = mindMap.getRootChildren();
   console.log("📋 Root children:");
   children.forEach((child, index) => {
-    console.log(`  ${index + 1}. ${child.text} (${child.side}) - ID: ${child.nodeId}`);
+    console.log(
+      `  ${index + 1}. ${child.text} (${child.side}) - ID: ${child.nodeId}`
+    );
   });
   return children;
 };
 
-// Performance testing function
 (window as any).performanceTest = (nodeCount: number = 100) => {
   console.log(`🚀 Starting performance test with ${nodeCount} nodes...`);
 
   const startTime = performance.now();
 
-  // Add many nodes quickly to test batching performance
   for (let i = 0; i < nodeCount; i++) {
     const side = i % 2 === 0 ? "left" : "right";
     (window as any).addRandomNode(side);
@@ -109,7 +81,6 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   console.log(`   • Average: ${(duration / nodeCount).toFixed(2)}ms per node`);
   console.log(`   • Total nodes: ${mindMap.getNodeCount()}`);
 
-  // Test cache stats if available
   const controller = mindMap.getController();
   try {
     const stats = controller.getCacheStats();
@@ -126,7 +97,6 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   };
 };
 
-// Instructions for users
 console.log(`
 🎯 MindMap Controls:
 • Click anywhere on canvas to add nodes

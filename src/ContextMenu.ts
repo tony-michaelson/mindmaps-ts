@@ -22,7 +22,11 @@ export interface MenuContext {
   canMoveToOppositeSide: boolean;
 }
 
-export type MenuActionHandler = (action: string, nodeId: string, data?: any) => void;
+export type MenuActionHandler = (
+  action: string,
+  nodeId: string,
+  data?: any
+) => void;
 
 export class ContextMenu {
   private element: HTMLDivElement;
@@ -37,8 +41,8 @@ export class ContextMenu {
   }
 
   private createElement(): void {
-    this.element = document.createElement('div');
-    this.element.className = 'mindmap-context-menu';
+    this.element = document.createElement("div");
+    this.element.className = "mindmap-context-menu";
     this.element.style.cssText = `
       position: fixed;
       background: white;
@@ -53,42 +57,47 @@ export class ContextMenu {
       font-size: 14px;
       user-select: none;
     `;
-    
+
     document.body.appendChild(this.element);
   }
 
   private bindEvents(): void {
-    // Close menu on click outside
-    document.addEventListener('click', (e) => {
+    document.addEventListener("click", (e) => {
       if (!this.element.contains(e.target as Node)) {
         this.hide();
       }
     });
 
-    // Close menu on ESC key
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.isVisible) {
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.isVisible) {
         this.hide();
       }
     });
 
-    // Handle menu item clicks
-    this.element.addEventListener('click', (e) => {
+    this.element.addEventListener("click", (e) => {
       const target = e.target as HTMLElement;
-      const menuItem = target.closest('[data-action]') as HTMLElement;
-      
-      if (menuItem && !menuItem.classList.contains('disabled') && this.currentContext) {
+      const menuItem = target.closest("[data-action]") as HTMLElement;
+
+      if (
+        menuItem &&
+        !menuItem.classList.contains("disabled") &&
+        this.currentContext
+      ) {
         const action = menuItem.dataset.action!;
         let data = undefined;
         try {
-          if (menuItem.dataset.data && menuItem.dataset.data !== '') {
+          if (menuItem.dataset.data && menuItem.dataset.data !== "") {
             const unescapedData = menuItem.dataset.data.replace(/&quot;/g, '"');
             data = JSON.parse(unescapedData);
           }
         } catch (error) {
-          console.warn('Failed to parse menu item data:', menuItem.dataset.data, error);
+          console.warn(
+            "Failed to parse menu item data:",
+            menuItem.dataset.data,
+            error
+          );
         }
-        
+
         this.onAction(action, this.currentContext.nodeId, data);
         this.hide();
       }
@@ -98,62 +107,68 @@ export class ContextMenu {
   public show(position: MenuPosition, context: MenuContext): void {
     this.currentContext = context;
     this.buildMenu(context);
-    
-    // Position menu
+
     this.element.style.left = `${position.x}px`;
     this.element.style.top = `${position.y}px`;
-    this.element.style.display = 'block';
+    this.element.style.display = "block";
     this.isVisible = true;
 
-    // Ensure menu stays within viewport
     this.adjustPosition();
   }
 
   public hide(): void {
-    this.element.style.display = 'none';
+    this.element.style.display = "none";
     this.isVisible = false;
     this.currentContext = null;
   }
 
   private buildMenu(context: MenuContext): void {
     const actions: MenuAction[] = [
-      { id: 'edit', label: '✏️ Edit Text', icon: '✏️' },
-      { separator: true, id: 'sep1', label: '' },
-      { 
-        id: 'change-type', 
-        label: '🎯 Change Type', 
+      { id: "edit", label: "✏️ Edit Text", icon: "✏️" },
+      { separator: true, id: "sep1", label: "" },
+      {
+        id: "change-type",
+        label: "🎯 Change Type",
         submenu: [
-          { id: 'type-task', label: '📋 Task', data: { type: NodeType.TASK } },
-          { id: 'type-idea', label: '💡 Idea', data: { type: NodeType.IDEA } },
-          { id: 'type-resource', label: '📚 Resource', data: { type: NodeType.RESOURCE } },
-          { id: 'type-deadline', label: '⏰ Deadline', data: { type: NodeType.DEADLINE } }
-        ]
+          { id: "type-task", label: "📋 Task", data: { type: NodeType.TASK } },
+          { id: "type-idea", label: "💡 Idea", data: { type: NodeType.IDEA } },
+          {
+            id: "type-resource",
+            label: "📚 Resource",
+            data: { type: NodeType.RESOURCE },
+          },
+          {
+            id: "type-deadline",
+            label: "⏰ Deadline",
+            data: { type: NodeType.DEADLINE },
+          },
+        ],
       },
-      { separator: true, id: 'sep2', label: '' },
-      { id: 'add-child', label: '➕ Add Child' },
-      { id: 'add-sibling', label: '↔️ Add Sibling' },
-      { separator: true, id: 'sep3', label: '' }
+      { separator: true, id: "sep2", label: "" },
+      { id: "add-child", label: "➕ Add Child" },
+      { id: "add-sibling", label: "↔️ Add Sibling" },
+      { separator: true, id: "sep3", label: "" },
     ];
 
-    // Add "Move to Opposite Side" for root children
     if (context.canMoveToOppositeSide) {
-      actions.push({ id: 'move-opposite', label: '↔️ Move to Opposite Side' });
-      actions.push({ separator: true, id: 'sep4', label: '' });
+      actions.push({ id: "move-opposite", label: "↔️ Move to Opposite Side" });
+      actions.push({ separator: true, id: "sep4", label: "" });
     }
 
-    actions.push({ id: 'delete', label: '🗑️ Delete Node' });
+    actions.push({ id: "delete", label: "🗑️ Delete Node" });
 
     this.element.innerHTML = this.renderActions(actions);
   }
 
   private renderActions(actions: MenuAction[]): string {
-    return actions.map(action => {
-      if (action.separator) {
-        return '<div class="menu-separator" style="height: 1px; background: #e0e0e0; margin: 4px 0;"></div>';
-      }
+    return actions
+      .map((action) => {
+        if (action.separator) {
+          return '<div class="menu-separator" style="height: 1px; background: #e0e0e0; margin: 4px 0;"></div>';
+        }
 
-      if (action.submenu) {
-        return `
+        if (action.submenu) {
+          return `
           <div class="menu-item has-submenu" data-action="${action.id}" style="
             padding: 8px 12px;
             cursor: pointer;
@@ -180,13 +195,17 @@ export class ContextMenu {
             </div>
           </div>
         `;
-      }
+        }
 
-      const data = action.data ? JSON.stringify(action.data).replace(/"/g, '&quot;') : '';
-      const disabledClass = action.disabled ? ' disabled' : '';
-      const disabledStyle = action.disabled ? 'opacity: 0.5; cursor: not-allowed;' : '';
-      
-      return `
+        const data = action.data
+          ? JSON.stringify(action.data).replace(/"/g, "&quot;")
+          : "";
+        const disabledClass = action.disabled ? " disabled" : "";
+        const disabledStyle = action.disabled
+          ? "opacity: 0.5; cursor: not-allowed;"
+          : "";
+
+        return `
         <div class="menu-item${disabledClass}" data-action="${action.id}" data-data="${data}" style="
           padding: 8px 12px;
           cursor: pointer;
@@ -197,24 +216,23 @@ export class ContextMenu {
           ${action.label}
         </div>
       `;
-    }).join('');
+      })
+      .join("");
   }
 
   private adjustPosition(): void {
     const rect = this.element.getBoundingClientRect();
     const viewport = {
       width: window.innerWidth,
-      height: window.innerHeight
+      height: window.innerHeight,
     };
 
-    let { left, top } = rect;
+    const { left, top } = rect;
 
-    // Adjust horizontal position
     if (left + rect.width > viewport.width) {
       this.element.style.left = `${viewport.width - rect.width - 10}px`;
     }
 
-    // Adjust vertical position
     if (top + rect.height > viewport.height) {
       this.element.style.top = `${viewport.height - rect.height - 10}px`;
     }

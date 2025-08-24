@@ -15,16 +15,14 @@ export class HierarchicalPositioner {
     rootX: number,
     rootY: number
   ): NodePosition {
-    // Only set default dimensions if not already stored
     if (!this.nodeData.has(nodeId)) {
-      this.nodeData.set(nodeId, { 
-        width: LAYOUT_CONFIG.width, 
-        height: LAYOUT_CONFIG.height 
+      this.nodeData.set(nodeId, {
+        width: LAYOUT_CONFIG.width,
+        height: LAYOUT_CONFIG.height,
       });
     }
 
     if (!parentId) {
-      // Root node - always centered
       const position: NodePosition = {
         x: rootX,
         y: rootY,
@@ -49,10 +47,9 @@ export class HierarchicalPositioner {
 
     this.nodeSides.set(nodeId, nodeSide);
 
-    // Create temporary position starting at parent node - will be recalculated with outline-based layout
     const position: NodePosition = {
-      x: parentPos.x, // Start at parent position, will be updated by outline calculation
-      y: parentPos.y, // Start at parent position, will be updated by outline calculation
+      x: parentPos.x,
+      y: parentPos.y,
       level: parentPos.level + 1,
       parentId,
       stackIndex,
@@ -63,29 +60,22 @@ export class HierarchicalPositioner {
     return position;
   }
 
-
   repositionSiblings(
     parentId: string,
     rootX: number,
     rootY: number
   ): NodePosition[] {
-    // Trigger full outline-based layout recalculation
     return this.recalculateLayout(rootX, rootY);
   }
 
-  // Recalculate entire layout using outline-based system
   private recalculateLayout(rootX: number, rootY: number): NodePosition[] {
     const rootId = this.findRootNode();
     if (!rootId) return [];
 
-
-    // Build tree structures for left and right sides
     const leftNodes = this.buildTreeStructure(rootId, "left");
     const rightNodes = this.buildTreeStructure(rootId, "right");
     const rootNode = this.createTreeNode(rootId);
 
-
-    // Calculate layout using outline-based algorithm
     const layoutResults = this.layoutCalculator.calculateLayout(
       leftNodes,
       rightNodes,
@@ -94,15 +84,12 @@ export class HierarchicalPositioner {
       rootY
     );
 
-    layoutResults.forEach(result => {
-    });
+    layoutResults.forEach((result) => {});
 
-    // Update stored positions
     const updatedPositions: NodePosition[] = [];
-    layoutResults.forEach(result => {
+    layoutResults.forEach((result) => {
       const nodePos = this.nodePositions.get(result.nodeId);
       if (nodePos) {
-        // TreeLayout returns center coordinates, use them directly
         nodePos.x = result.x;
         nodePos.y = result.y;
         updatedPositions.push(nodePos);
@@ -113,39 +100,46 @@ export class HierarchicalPositioner {
     return updatedPositions;
   }
 
-  // Build tree structure for outline calculation
-  private buildTreeStructure(nodeId: string, side: "left" | "right"): TreeNode[] {
+  private buildTreeStructure(
+    nodeId: string,
+    side: "left" | "right"
+  ): TreeNode[] {
     const children = this.childrenMap.get(nodeId) || [];
-    const sideChildren = children.filter(childId => {
+    const sideChildren = children.filter((childId) => {
       const childSide = this.nodeSides.get(childId);
       return childSide === side;
     });
 
-    return sideChildren.map(childId => this.createTreeNode(childId, side));
+    return sideChildren.map((childId) => this.createTreeNode(childId, side));
   }
 
-  // Create tree node for layout calculation
-  private createTreeNode(nodeId: string, filterBySide?: "left" | "right"): TreeNode {
-    const nodeData = this.nodeData.get(nodeId) || { width: LAYOUT_CONFIG.width, height: LAYOUT_CONFIG.height };
+  private createTreeNode(
+    nodeId: string,
+    filterBySide?: "left" | "right"
+  ): TreeNode {
+    const nodeData = this.nodeData.get(nodeId) || {
+      width: LAYOUT_CONFIG.width,
+      height: LAYOUT_CONFIG.height,
+    };
     let children = this.childrenMap.get(nodeId) || [];
-    
-    // Filter children by side if specified
+
     if (filterBySide) {
-      children = children.filter(childId => {
+      children = children.filter((childId) => {
         const childSide = this.nodeSides.get(childId);
         return childSide === filterBySide;
       });
     }
-    
+
     return {
       id: nodeId,
       width: nodeData.width,
       height: nodeData.height,
-      children: children.map(childId => this.createTreeNode(childId, filterBySide))
+      children: children.map((childId) =>
+        this.createTreeNode(childId, filterBySide)
+      ),
     };
   }
 
-  // Find root node
   private findRootNode(): string | null {
     for (const [nodeId, position] of this.nodePositions) {
       if (position.level === 0) {
@@ -155,7 +149,6 @@ export class HierarchicalPositioner {
     return null;
   }
 
-
   addToChildrenMap(parentId: string, childId: string): void {
     const siblings = this.childrenMap.get(parentId) || [];
     siblings.push(childId);
@@ -163,16 +156,13 @@ export class HierarchicalPositioner {
   }
 
   addChildAtEnd(parentId: string, childId: string): void {
-    // Ensure the child is added at the very end (bottom) of the children list
     const siblings = this.childrenMap.get(parentId) || [];
-    
-    // Remove the child if it already exists to avoid duplicates
+
     const existingIndex = siblings.indexOf(childId);
     if (existingIndex > -1) {
       siblings.splice(existingIndex, 1);
     }
-    
-    // Add at the end
+
     siblings.push(childId);
     this.childrenMap.set(parentId, siblings);
   }
@@ -211,8 +201,7 @@ export class HierarchicalPositioner {
 
   updateNodeSide(nodeId: string, side: "left" | "right"): void {
     this.nodeSides.set(nodeId, side);
-    
-    // Also update the side in the stored NodePosition object
+
     const position = this.nodePositions.get(nodeId);
     if (position) {
       position.side = side;
