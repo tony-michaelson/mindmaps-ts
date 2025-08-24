@@ -385,7 +385,7 @@ export class Node {
     }
   }
 
-  private finishEditing(): void {
+  public finishEditing(): void {
     if (!this.isEditing) return;
     
     // console.log('📝 Finishing edit with text:', this.currentText);
@@ -418,6 +418,10 @@ export class Node {
     // Restore normal appearance
     this.updateVisualStateOnly();
     this.layer.draw();
+  }
+
+  public isCurrentlyEditing(): boolean {
+    return this.isEditing;
   }
 
   public getText(): string {

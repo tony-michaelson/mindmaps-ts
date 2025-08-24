@@ -75,6 +75,14 @@ export class MindMap {
     // Enable stage dragging for panning the mindmap
     this.stage.draggable(true);
 
+    // Add click handler for stage to deselect nodes and finish editing
+    this.stage.on('click', (e) => {
+      // Only handle clicks on the stage itself, not on nodes
+      if (e.target === this.stage) {
+        this.controller.deselectAllNodes();
+      }
+    });
+
     // Add keyboard shortcuts
     this.initKeyboardShortcuts();
   }

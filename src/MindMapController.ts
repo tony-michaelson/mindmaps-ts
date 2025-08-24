@@ -708,8 +708,11 @@ export class MindmapController {
   }
 
   private selectNode(nodeId: string): void {
-    // Clear all selections first (without redrawing)
+    // Finish editing on any currently editing node
     this.konvaNodes.forEach((node) => {
+      if (node.isCurrentlyEditing()) {
+        node.finishEditing();
+      }
       node.setSelected(false);
     });
 
@@ -737,6 +740,25 @@ export class MindmapController {
 
   private generateNodeId(): string {
     return uuidv4();
+  }
+
+  public deselectAllNodes(): void {
+    // Finish editing and deselect all nodes
+    this.konvaNodes.forEach((node) => {
+      if (node.isCurrentlyEditing()) {
+        node.finishEditing();
+      }
+      node.setSelected(false);
+    });
+    
+    this.selectedNodeId = null;
+    
+    // Notify callback of selection change
+    if (this.onNodeSelected) {
+      this.onNodeSelected(null);
+    }
+    
+    this.layer.draw();
   }
 
 
