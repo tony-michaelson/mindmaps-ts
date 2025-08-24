@@ -676,7 +676,7 @@ export class MindmapController {
     this.updateConnectionsSimple(parentId);
   }
 
-  private selectNode(nodeId: string): void {
+  public selectNode(nodeId: string): void {
     // Finish editing on any currently editing node
     this.konvaNodes.forEach((node) => {
       if (node.isCurrentlyEditing()) {

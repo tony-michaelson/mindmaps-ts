@@ -137,6 +137,8 @@ export class MindMap {
 
     try {
       const nodeId = this.controller.addNodeToRoot(nodeText, nodeType, side);
+      // Select the newly created node
+      this.controller.selectNode(nodeId);
       this.layer.draw();
       await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
     } catch (error) {
@@ -148,6 +150,8 @@ export class MindMap {
       // Add child to the selected node
       try {
         const nodeId = this.controller.addNodeToExisting(this.selectedNodeId, text, type);
+        // Select the newly created child node
+        this.controller.selectNode(nodeId);
         this.layer.draw();
         await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
       } catch (error) {
@@ -169,6 +173,8 @@ export class MindMap {
         // Add sibling by adding to the parent
         try {
           const nodeId = this.controller.addNodeToExisting(parentId, text, type);
+          // Select the newly created sibling node
+          this.controller.selectNode(nodeId);
           this.layer.draw();
           await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
         } catch (error) {
@@ -180,7 +186,9 @@ export class MindMap {
         const rootChildren = this.controller.getRootChildren();
         const selectedChild = rootChildren.find(child => child.nodeId === this.selectedNodeId);
         const side = selectedChild?.side || "right";
-        await this.addRootChild(text, type, side);
+        const nodeId = await this.addRootChild(text, type, side);
+        // Select the newly created root child
+        this.controller.selectNode(nodeId);
       }
     } else {
       // No node selected, add to root
