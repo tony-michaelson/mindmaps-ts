@@ -197,12 +197,21 @@ export class MindMap {
     this.controller.removeNode(nodeId);
   }
 
+  public moveRootChildToOppositeSide(nodeId: string): void {
+    this.controller.moveRootChildToOppositeSide(nodeId);
+    this.layer.draw();
+  }
+
   public getNodeCount(): number {
     return this.controller.getNodeCount();
   }
 
   public getRootId(): string | null {
     return this.controller.getRootId();
+  }
+
+  public getRootChildren(): Array<{nodeId: string, side: "left" | "right", text: string}> {
+    return this.controller.getRootChildren();
   }
 
   public render(): void {

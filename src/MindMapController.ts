@@ -541,13 +541,19 @@ export class MindmapController {
   }
 
   private handleNodeDrop(nodeId: string, dropX: number, dropY: number): void {
+    console.log(`🎯 handleNodeDrop: nodeId=${nodeId}, dropX=${dropX}, dropY=${dropY}`);
+    
     const nodePosition = this.positioner.getNodePosition(nodeId);
     if (!nodePosition) {
+      console.log(`❌ No position found for node ${nodeId}`);
       return;
     }
 
+    console.log(`📍 Node position: level=${nodePosition.level}, side=${nodePosition.side}, parentId=${nodePosition.parentId}`);
+
     // Don't allow root node to be reparented
     if (nodeId === this.rootId) {
+      console.log(`🚫 Cannot drag root node`);
       const position = this.positioner.getNodePosition(nodeId);
       if (position) {
         const node = this.konvaNodes.get(nodeId);
@@ -558,13 +564,17 @@ export class MindmapController {
 
     // First, check if the node is being dropped on another node for reparenting
     const dropTargetId = this.findNodeAtPosition(dropX, dropY, nodeId);
+    console.log(`🔍 Drop target search: found=${dropTargetId}`);
+    
     if (dropTargetId && this.canReparent(nodeId, dropTargetId)) {
+      console.log(`👨‍👩‍👧‍👦 Reparenting ${nodeId} to ${dropTargetId}`);
       this.reparentNode(nodeId, dropTargetId);
       return;
     }
 
-    // If no reparenting, handle sibling reordering
+    // If no reparenting, first check if root child should switch sides (higher priority)
     if (!nodePosition.parentId) {
+      console.log(`❌ No parent ID found for node ${nodeId} - snapping back`);
       // Root node or invalid position - snap back to original
       const position = this.positioner.getNodePosition(nodeId);
       if (position) {
@@ -574,12 +584,46 @@ export class MindmapController {
       return;
     }
 
-    // Get all siblings (including the dragged node)
     const parentId = nodePosition.parentId;
+    console.log(`👪 Processing for parentId=${parentId}`);
+    console.log(`🔢 Root ID is: ${this.rootId}`);
+
+    // Check if root child should switch sides FIRST (higher priority than sibling reordering)
+    if (nodePosition.level === 1 && parentId === this.rootId) {
+      console.log(`✅ This is a root child (level 1) - checking side switch first`);
+      const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX, dropY);
+      if (shouldSwitchSides) {
+        console.log(`🔄 Switching sides for node ${nodeId} based on drag position`);
+        this.moveRootChildToOppositeSide(nodeId);
+        return;
+      } else {
+        console.log(`🤔 Side switch conditions not met, checking sibling reordering`);
+      }
+    }
+
+    // Get all siblings (including the dragged node)
     const siblings = this.positioner.getChildren(parentId);
     
     if (siblings.length <= 1) {
-      // No siblings to reorder with - snap back to original
+      console.log(`🤔 No siblings to reorder with (only ${siblings.length} sibling)`);
+      
+      // No siblings to reorder with - check if root child should switch sides
+      if (nodePosition.level === 1 && parentId === this.rootId) {
+        console.log(`✅ This is a root child (level 1) with no siblings - checking side switch`);
+        const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX, dropY);
+        if (shouldSwitchSides) {
+          console.log(`🔄 Switching sides for node ${nodeId} based on drag position`);
+          this.moveRootChildToOppositeSide(nodeId);
+          return;
+        } else {
+          console.log(`❌ Side switch conditions not met`);
+        }
+      } else {
+        console.log(`❌ Not a root child: level=${nodePosition.level}, parentId=${parentId}, rootId=${this.rootId}`);
+      }
+      
+      // Snap back to original position
+      console.log(`📍 Snapping back to original position`);
       const position = this.positioner.getNodePosition(nodeId);
       if (position) {
         const node = this.konvaNodes.get(nodeId);
@@ -620,8 +664,11 @@ export class MindmapController {
 
     // If we found a valid drop target, reorder the siblings
     if (closestSiblingId && insertIndex >= 0) {
+      console.log(`↕️ Reordering siblings: moving ${nodeId} to index ${insertIndex} near ${closestSiblingId}`);
       this.reorderSiblings(parentId, nodeId, insertIndex);
     } else {
+      console.log(`🤔 No valid sibling reordering target found - snapping back`);
+      
       // No valid drop target - snap back to original position
       const position = this.positioner.getNodePosition(nodeId);
       if (position) {
@@ -910,12 +957,106 @@ export class MindmapController {
     return this.rootId;
   }
 
+  public getRootChildren(): Array<{nodeId: string, side: "left" | "right", text: string}> {
+    if (!this.rootId) return [];
+    
+    const rootChildren = this.positioner.getChildren(this.rootId);
+    return rootChildren.map(nodeId => {
+      const side = this.positioner.getNodeSide(nodeId) || "right";
+      const node = this.konvaNodes.get(nodeId);
+      const text = node?.getText() || "Unknown";
+      return { nodeId, side, text };
+    });
+  }
+
   public getSelectedNodeId(): string | null {
     return this.selectedNodeId;
   }
 
+  // Move a root child to the opposite side
+  public moveRootChildToOppositeSide(nodeId: string): void {
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    if (!nodePosition) {
+      console.warn('Node not found:', nodeId);
+      return;
+    }
+
+    // Only allow moving root children (level 1)
+    if (nodePosition.level !== 1) {
+      console.warn('Can only move root children (level 1 nodes)');
+      return;
+    }
+
+    const currentSide = this.positioner.getNodeSide(nodeId);
+    if (!currentSide) {
+      console.warn('Node side not found:', nodeId);
+      return;
+    }
+
+    const newSide = currentSide === "left" ? "right" : "left";
+    
+    console.log(`Moving node ${nodeId} from ${currentSide} to ${newSide}`);
+    
+    // Update the node's side and all its descendants
+    this.updateNodeAndDescendantsSides(nodeId, newSide);
+    
+    // Trigger layout recalculation to update positions
+    const layoutResults = this.positioner.repositionSiblings(this.rootId!, this.rootX, this.rootY);
+    
+    // Update visual positions
+    Array.from(this.konvaNodes.keys()).forEach(id => {
+      const position = this.positioner.getNodePosition(id);
+      const node = this.konvaNodes.get(id);
+      if (node && node.getGroup() && position) {
+        this.animateToPosition(node, position);
+      }
+    });
+    
+    // Update connections after animation
+    setTimeout(() => {
+      // Clear all existing connections first to prevent duplicates
+      this.connections.forEach(connection => connection.destroy());
+      this.connections.clear();
+      
+      // Now recreate all connections
+      this.updateAllConnections();
+    }, 300); // Match animation duration
+  }
+
   public getCacheStats() {
     return this.connectionCache.getCacheStats();
+  }
+
+  private shouldSwitchSides(nodeId: string, dropX: number, dropY: number): boolean {
+    const nodePosition = this.positioner.getNodePosition(nodeId);
+    const rootPosition = this.positioner.getNodePosition(this.rootId!);
+    
+    if (!nodePosition || !rootPosition) {
+      return false;
+    }
+
+    const currentSide = nodePosition.side;
+    const rootCenterX = rootPosition.x;
+    
+    // Determine which side the drop position is on relative to root
+    const droppedOnLeftSide = dropX < rootCenterX;
+    const droppedOnRightSide = dropX > rootCenterX;
+    
+    // Check if the node was dragged to the opposite side
+    const shouldMoveToLeft = currentSide === "right" && droppedOnLeftSide;
+    const shouldMoveToRight = currentSide === "left" && droppedOnRightSide;
+    
+    // Add a small threshold to prevent accidental switches near the center
+    const threshold = 50; // pixels
+    const distanceFromCenter = Math.abs(dropX - rootCenterX);
+    
+    if (distanceFromCenter < threshold) {
+      return false; // Too close to center, don't switch
+    }
+    
+    console.log(`🎯 Drop analysis: dropX=${dropX}, rootX=${rootCenterX}, currentSide=${currentSide}, distance=${distanceFromCenter}`);
+    
+    return shouldMoveToLeft || shouldMoveToRight;
   }
 
   public clearCaches(): void {

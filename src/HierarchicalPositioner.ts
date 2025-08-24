@@ -208,6 +208,13 @@ export class HierarchicalPositioner {
 
   updateNodeSide(nodeId: string, side: "left" | "right"): void {
     this.nodeSides.set(nodeId, side);
+    
+    // Also update the side in the stored NodePosition object
+    const position = this.nodePositions.get(nodeId);
+    if (position) {
+      position.side = side;
+      this.nodePositions.set(nodeId, position);
+    }
   }
 
   removeNode(nodeId: string): void {

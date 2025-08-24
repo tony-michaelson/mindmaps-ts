@@ -73,6 +73,22 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   console.log("🧹 Caches cleared!");
 };
 
+// Move root child to opposite side
+(window as any).moveToOppositeSide = (nodeId: string) => {
+  mindMap.moveRootChildToOppositeSide(nodeId);
+  console.log(`🔄 Moved node ${nodeId} to opposite side`);
+};
+
+// List all root children with their sides
+(window as any).listRootChildren = () => {
+  const children = mindMap.getRootChildren();
+  console.log("📋 Root children:");
+  children.forEach((child, index) => {
+    console.log(`  ${index + 1}. ${child.text} (${child.side}) - ID: ${child.nodeId}`);
+  });
+  return children;
+};
+
 // Performance testing function
 (window as any).performanceTest = (nodeCount: number = 100) => {
   console.log(`🚀 Starting performance test with ${nodeCount} nodes...`);
@@ -123,10 +139,14 @@ console.log(`
 • addChildToNode(nodeId)
 • mindMap.getNodeCount()
 • mindMap.getRootId()
+• listRootChildren() - list all root children with their sides and IDs
+• moveToOppositeSide(nodeId) - move a root child to opposite side
 • performanceTest(100) - performance test with N nodes
 • clearCaches() - clear connection and visibility caches
 
-Example: performanceTest(50)
+Example: 
+1. listRootChildren() to see nodes
+2. moveToOppositeSide('node-id') to move a node
 `);
 
 mindMap.render();
