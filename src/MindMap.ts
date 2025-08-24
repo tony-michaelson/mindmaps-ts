@@ -22,6 +22,7 @@ export class MindMap {
   private centerY: number;
   private selectedNodeId: string | null = null;
   private callbacks: Map<ActionType, CallbackFunction[]> = new Map();
+  private defaultNodeType: NodeType = NodeType.TASK;
 
   constructor(containerId: string, width: number, height: number) {
     this.stage = new Konva.Stage({
@@ -111,11 +112,11 @@ export class MindMap {
           break;
         case "Enter":
           e.preventDefault();
-          this.addSiblingToSelected("", NodeType.TASK);
+          this.addSiblingToSelected("");
           break;
         case "Tab":
           e.preventDefault();
-          this.addChildToSelected("", NodeType.TASK);
+          this.addChildToSelected("");
           break;
         case "Delete":
         case "Backspace":
@@ -133,7 +134,7 @@ export class MindMap {
 
   private async addNodeToSide(side: "left" | "right"): Promise<void> {
     const nodeText = ""; // Start with empty text for immediate editing
-    const nodeType = this.getRandomNodeType();
+    const nodeType = this.defaultNodeType;
 
     try {
       const nodeId = this.controller.addNodeToRoot(nodeText, nodeType, side);
@@ -145,26 +146,28 @@ export class MindMap {
     }
   }
 
-  private async addChildToSelected(text: string = "", type: NodeType = NodeType.TASK): Promise<void> {
+  private async addChildToSelected(text: string = "", type?: NodeType): Promise<void> {
+    const nodeType = type || this.defaultNodeType;
     if (this.selectedNodeId) {
       // Add child to the selected node
       try {
-        const nodeId = this.controller.addNodeToExisting(this.selectedNodeId, text, type);
+        const nodeId = this.controller.addNodeToExisting(this.selectedNodeId, text, nodeType);
         // Select the newly created child node
         this.controller.selectNode(nodeId);
         this.layer.draw();
         await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
       } catch (error) {
         // Fallback to adding to root
-        await this.addRootChild(text, type);
+        await this.addRootChild(text, nodeType);
       }
     } else {
       // No node selected, add to root
-      await this.addRootChild(text, type);
+      await this.addRootChild(text, nodeType);
     }
   }
 
-  private async addSiblingToSelected(text: string = "", type: NodeType = NodeType.TASK): Promise<void> {
+  private async addSiblingToSelected(text: string = "", type?: NodeType): Promise<void> {
+    const nodeType = type || this.defaultNodeType;
     if (this.selectedNodeId) {
       // Find the parent of the selected node to add a sibling
       const parentId = this.controller.getParentId(this.selectedNodeId);
@@ -172,27 +175,27 @@ export class MindMap {
       if (parentId) {
         // Add sibling by adding to the parent
         try {
-          const nodeId = this.controller.addNodeToExisting(parentId, text, type);
+          const nodeId = this.controller.addNodeToExisting(parentId, text, nodeType);
           // Select the newly created sibling node
           this.controller.selectNode(nodeId);
           this.layer.draw();
           await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
         } catch (error) {
           // Fallback to adding to root
-          await this.addRootChild(text, type);
+          await this.addRootChild(text, nodeType);
         }
       } else {
         // Selected node is root or has no parent, add to root side
         const rootChildren = this.controller.getRootChildren();
         const selectedChild = rootChildren.find(child => child.nodeId === this.selectedNodeId);
         const side = selectedChild?.side || "right";
-        const nodeId = await this.addRootChild(text, type, side);
+        const nodeId = await this.addRootChild(text, nodeType, side);
         // Select the newly created root child
         this.controller.selectNode(nodeId);
       }
     } else {
       // No node selected, add to root
-      await this.addRootChild(text, type);
+      await this.addRootChild(text, nodeType);
     }
   }
 
@@ -213,16 +216,6 @@ export class MindMap {
   }
 
 
-  private getRandomNodeType(): NodeType {
-    const types = [
-      NodeType.TASK,
-      NodeType.IDEA,
-      NodeType.RESOURCE,
-      NodeType.DEADLINE,
-    ];
-    return types[Math.floor(Math.random() * types.length)];
-  }
-
   // Public API methods
   public createRoot(text: string): string {
     return this.controller.createRootNode(text);
@@ -231,19 +224,21 @@ export class MindMap {
   public async addChildToNode(
     parentId: string,
     text: string = "",
-    type: NodeType = NodeType.TASK
+    type?: NodeType
   ): Promise<string> {
-    const nodeId = this.controller.addNodeToExisting(parentId, text, type);
+    const nodeType = type || this.defaultNodeType;
+    const nodeId = this.controller.addNodeToExisting(parentId, text, nodeType);
     await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
     return nodeId;
   }
 
   public async addRootChild(
     text: string = "",
-    type: NodeType = NodeType.TASK,
+    type?: NodeType,
     side: "left" | "right" = "right"
   ): Promise<string> {
-    const nodeId = this.controller.addNodeToRoot(text, type, side);
+    const nodeType = type || this.defaultNodeType;
+    const nodeId = this.controller.addNodeToRoot(text, nodeType, side);
     await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
     return nodeId;
   }
@@ -291,6 +286,14 @@ export class MindMap {
 
   public getController(): MindmapController {
     return this.controller;
+  }
+
+  public setDefaultNodeType(nodeType: NodeType): void {
+    this.defaultNodeType = nodeType;
+  }
+
+  public getDefaultNodeType(): NodeType {
+    return this.defaultNodeType;
   }
 
   public registerCallback(actionType: ActionType, callback: CallbackFunction): void {
@@ -353,6 +356,7 @@ export class MindMap {
   public exportToJson(): string {
     const exportData = {
       timestamp: new Date().toISOString(),
+      defaultNodeType: this.defaultNodeType,
       tree: this.controller.getTreeStructure()
     };
     
@@ -370,6 +374,11 @@ export class MindMap {
       
       if (!importData.tree) {
         throw new Error('Invalid JSON format: Missing tree data');
+      }
+      
+      // Set default node type if present
+      if (importData.defaultNodeType && Object.values(NodeType).includes(importData.defaultNodeType)) {
+        this.defaultNodeType = importData.defaultNodeType;
       }
       
       // Validate tree structure

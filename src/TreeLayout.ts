@@ -104,7 +104,7 @@ export class TreeLayoutCalculator {
     // For left side, position children to the left of parent
     const horizontal =
       side === "left"
-        ? -(horizontalSpacing + parentWidth)
+        ? -Math.min(parentWidth + horizontalSpacing, 150)
         : Math.min(parentWidth + horizontalSpacing, 150);
     const positioned: SubtreeLayout[] = [];
 
