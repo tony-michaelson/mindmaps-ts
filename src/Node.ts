@@ -407,9 +407,10 @@ export class Node {
     const rawTextHeight = this.textElement.height();
     console.log('📐 Raw text dimensions:', { width: rawTextWidth, height: rawTextHeight });
     
-    // Measure new text dimensions with minimum size constraints
-    const textWidth = Math.max(rawTextWidth, 60); // Minimum width
-    const textHeight = Math.max(rawTextHeight, 20); // Minimum height
+    // Measure new text dimensions with reasonable minimum size constraints
+    // Only apply minimum width if text is extremely small (less than 20px)
+    const textWidth = Math.max(rawTextWidth, 20); // Much smaller minimum width
+    const textHeight = Math.max(rawTextHeight, 16); // Reasonable minimum height
     const nodeWidth = textWidth + this.padding * 2;
     const nodeHeight = textHeight + this.padding * 2;
     
