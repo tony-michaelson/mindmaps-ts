@@ -14,6 +14,7 @@ import {
 export class MindmapController {
   private positioner = new HierarchicalPositioner();
   private konvaNodes: Map<string, Node> = new Map();
+  private nodeTypes: Map<string, NodeType> = new Map();
   private connections: Map<string, Konva.Shape> = new Map();
   private connectionCache = new ConnectionCache();
   private batchProcessor = new BatchProcessor();
@@ -77,8 +78,10 @@ export class MindmapController {
         this.rootX,
         this.rootY
       );
+      console.log('📍 Position calculated for', nodeId, ':', position);
 
       this.createAndPositionNode(nodeId, position, text, type);
+      console.log('🎯 Node created and positioned at', position.x, position.y);
       this.updateChildrenMap(this.rootId!, nodeId);
       
       // Add batch operations
@@ -111,8 +114,10 @@ export class MindmapController {
         this.rootX,
         this.rootY
       );
+      console.log('📍 Position calculated for child', nodeId, 'parent:', parentId, 'position:', position);
 
       this.createAndPositionNode(nodeId, position, text, type);
+      console.log('🎯 Child node positioned at', position.x, position.y);
       this.updateChildrenMap(parentId, nodeId);
       
       // Add batch operations
@@ -151,6 +156,7 @@ export class MindmapController {
     });
 
     this.konvaNodes.set(nodeId, node);
+    this.nodeTypes.set(nodeId, type);
 
     // Update the positioner with the node's actual dimensions after creation
     const group = node.getGroup();
@@ -681,6 +687,212 @@ export class MindmapController {
     return uuidv4();
   }
 
+
+  public clear(): void {
+    // Clear all visual elements
+    this.konvaNodes.forEach(node => node.remove());
+    this.connections.forEach(connection => connection.destroy());
+    
+    // Clear positioner data BEFORE clearing konvaNodes - CRITICAL FIX
+    Array.from(this.konvaNodes.keys()).forEach(nodeId => {
+      this.positioner.removeNode(nodeId);
+    });
+    
+    // Clear all data structures
+    this.konvaNodes.clear();
+    this.nodeTypes.clear();
+    this.connections.clear();
+    this.connectionCache.clearCache();
+    
+    // Reset state
+    this.rootId = null;
+    this.selectedNodeId = null;
+    
+    this.layer.draw();
+  }
+
+  public importFromTreeStructure(treeData: {
+    id: string;
+    text: string;
+    type: NodeType;
+    level: number;
+    side: string;
+    isSelected: boolean;
+    children: Array<any>;
+  }): void {
+    console.log('🔄 Starting import with tree data:', treeData);
+    
+    // Wrap entire import in a single batch to avoid positioning conflicts
+    this.batchProcessor.batch(() => {
+      // Clear existing mindmap
+      this.clear();
+      console.log('✅ Cleared existing mindmap');
+      
+      // Create root first
+      const rootId = this.createRootNode(treeData.text);
+      console.log('✅ Created root node:', rootId, 'with text:', treeData.text);
+      
+      // Create a queue of nodes to process with their parent IDs
+      const nodeQueue: Array<{nodeData: any, parentId: string}> = [];
+      
+      // Add all root children to the queue
+      treeData.children.forEach(child => {
+        nodeQueue.push({ nodeData: child, parentId: rootId });
+        console.log('📝 Added to queue:', child.text, 'parent:', rootId, 'side:', child.side);
+      });
+      
+      console.log('📊 Processing queue with', nodeQueue.length, 'items');
+      
+      // Process the queue iteratively
+      let processCount = 0;
+      while (nodeQueue.length > 0) {
+        const { nodeData, parentId } = nodeQueue.shift()!;
+        processCount++;
+        
+        console.log(`🔨 Processing node ${processCount}:`, nodeData.text, 'parent:', parentId);
+        
+        let newNodeId: string;
+        
+        // Determine if this is a direct child of root
+        const isRootChild = parentId === rootId;
+        console.log('🎯 Is root child:', isRootChild, 'level:', nodeData.level);
+        
+        if (isRootChild) {
+          // Use addNodeToRoot for proper side handling
+          console.log('➡️ Calling addNodeToRoot with side:', nodeData.side);
+          newNodeId = this.addNodeToRoot(
+            nodeData.text, 
+            nodeData.type, 
+            nodeData.side as "left" | "right"
+          );
+          console.log('✅ Created root child:', newNodeId);
+        } else {
+          // Use addNodeToExisting for deeper nodes
+          console.log('⬇️ Calling addNodeToExisting, parent:', parentId);
+          newNodeId = this.addNodeToExisting(parentId, nodeData.text, nodeData.type);
+          console.log('✅ Created child node:', newNodeId);
+        }
+        
+        // Add this node's children to the queue
+        if (nodeData.children && nodeData.children.length > 0) {
+          console.log('👶 Adding', nodeData.children.length, 'children to queue');
+          nodeData.children.forEach((child: any) => {
+            nodeQueue.push({ nodeData: child, parentId: newNodeId });
+            console.log('  📝 Queued child:', child.text);
+          });
+        }
+      }
+      
+      console.log('🎉 Import completed! Processed', processCount, 'nodes');
+      
+      // Trigger full layout recalculation to properly position all nodes
+      console.log('🗖️ Triggering layout recalculation...');
+      
+      // Debug: Check what the positioner sees
+      console.log('🔍 Positioner state before layout:');
+      console.log('  Root ID:', this.rootId);
+      console.log('  Root children:', this.positioner.getChildren(this.rootId!));
+      this.positioner.getChildren(this.rootId!).forEach(childId => {
+        console.log('    Child', childId, 'children:', this.positioner.getChildren(childId));
+      });
+      
+      const layoutResults = this.positioner.repositionSiblings(this.rootId!, this.rootX, this.rootY);
+      console.log('✅ Layout recalculated,', layoutResults.length, 'positions updated');
+      
+      // Update all node positions with the recalculated layout
+      // layoutResults contains the updated NodePosition objects
+      // Get all node IDs and update their visual positions
+      Array.from(this.konvaNodes.keys()).forEach(nodeId => {
+        const position = this.positioner.getNodePosition(nodeId);
+        const node = this.konvaNodes.get(nodeId);
+        if (node && node.getGroup() && position) {
+          console.log('📍 Updating', nodeId, 'to position', position.x, position.y);
+          node.getGroup().x(position.x - LAYOUT_CONFIG.width / 2);
+          node.getGroup().y(position.y - LAYOUT_CONFIG.height / 2);
+        }
+      });
+    });
+    
+    // Redraw the layer
+    this.layer.draw();
+  }
+
+  private importNode(nodeData: {
+    id: string;
+    text: string;
+    type: NodeType;
+    level: number;
+    side: string;
+    isSelected: boolean;
+    children: Array<any>;
+  }, parentId: string | null): string {
+    const nodeId = this.generateNodeId(); // Generate new UUID instead of using old one
+    
+    // Create position for the node
+    let position: NodePosition;
+    
+    if (parentId === null) {
+      // Root node
+      position = {
+        x: this.rootX,
+        y: this.rootY,
+        level: 0,
+        stackIndex: 0,
+        side: "right" as const
+      };
+    } else {
+      // Child node - need to manually calculate position during import
+      const parentPos = this.positioner.getNodePosition(parentId);
+      if (!parentPos) {
+        throw new Error(`Parent node position not found for ${parentId}`);
+      }
+      
+      // Get sibling count for stack positioning
+      const siblings = this.positioner.getChildren(parentId);
+      const stackIndex = siblings.length;
+      
+      // Calculate child position based on parent and side
+      const side = nodeData.side as "left" | "right";
+      const horizontalOffset = side === "left" ? -(LAYOUT_CONFIG.width + LAYOUT_CONFIG.horizontalSpacing) : (LAYOUT_CONFIG.width + LAYOUT_CONFIG.horizontalSpacing);
+      const verticalOffset = stackIndex * (LAYOUT_CONFIG.height + LAYOUT_CONFIG.verticalSpacing);
+      
+      position = {
+        x: parentPos.x + horizontalOffset,
+        y: parentPos.y + verticalOffset,
+        level: parentPos.level + 1,
+        stackIndex,
+        side,
+        parentId
+      };
+    }
+    
+    // Update positioner with the node position before creating the visual node
+    this.positioner.updateNodePosition(nodeId, position);
+    
+    // Add to children map if has parent
+    if (parentId) {
+      this.updateChildrenMap(parentId, nodeId);
+    }
+    
+    // Create and position the node
+    this.createAndPositionNode(nodeId, position, nodeData.text, nodeData.type);
+    
+    // Note: Selection state is not preserved during import
+    // since we generate new UUIDs
+    
+    // Import children recursively
+    nodeData.children.forEach(childData => {
+      this.importNode(childData, nodeId);
+    });
+    
+    return nodeId;
+    
+    // Update connections for this node
+    if (parentId) {
+      this.updateConnectionsSimple(parentId);
+    }
+  }
+
   private findNodeIdByPosition(position: NodePosition): string | null {
     for (const [nodeId, nodePos] of this.positioner["nodePositions"]) {
       if (nodePos === position) {
@@ -1136,6 +1348,7 @@ export class MindmapController {
     if (node) {
       node.remove();
       this.konvaNodes.delete(nodeId);
+      this.nodeTypes.delete(nodeId);
     }
 
     // Clear selection if the deleted node was selected
@@ -1187,6 +1400,7 @@ export class MindmapController {
   public getTreeStructure(): {
     id: string;
     text: string;
+    type: NodeType;
     level: number;
     side: string;
     isSelected: boolean;
@@ -1200,6 +1414,7 @@ export class MindmapController {
   private buildTreeNode(nodeId: string): {
     id: string;
     text: string;
+    type: NodeType;
     level: number;
     side: string;
     isSelected: boolean;
@@ -1214,10 +1429,43 @@ export class MindmapController {
     return {
       id: nodeId,
       text: node?.getText() || '',
+      type: this.nodeTypes.get(nodeId) || NodeType.TASK,
       level: position?.level || 0,
       side: position?.side || 'right',
       isSelected: nodeId === this.selectedNodeId,
       children: children
     };
+  }
+
+  private importNodeSimple(nodeData: {
+    id: string;
+    text: string;
+    type: NodeType;
+    level: number;
+    side: string;
+    isSelected: boolean;
+    children: Array<any>;
+  }, parentId: string | null): string {
+    let nodeId: string;
+    
+    if (parentId === null) {
+      // Create root node
+      nodeId = this.createRootNode(nodeData.text);
+    } else {
+      // For root children, use addNodeToRoot to get proper side handling
+      if (nodeData.level === 1) {
+        nodeId = this.addNodeToRoot(nodeData.text, nodeData.type, nodeData.side as "left" | "right");
+      } else {
+        // For deeper children, use addNodeToExisting
+        nodeId = this.addNodeToExisting(parentId, nodeData.text, nodeData.type);
+      }
+    }
+    
+    // Import children recursively
+    nodeData.children.forEach(childData => {
+      this.importNodeSimple(childData, nodeId);
+    });
+    
+    return nodeId;
   }
 }

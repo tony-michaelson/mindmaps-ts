@@ -169,6 +169,10 @@ export class MindMap {
   }
 
   // Public API methods
+  public createRoot(text: string): string {
+    return this.controller.createRootNode(text);
+  }
+
   public addRootNode(text: string): string {
     return this.controller.createRootNode(text);
   }
@@ -205,6 +209,11 @@ export class MindMap {
     this.layer.draw();
   }
 
+  public clear(): void {
+    this.controller.clear();
+    this.selectedNodeId = null;
+  }
+
   // Utility methods for external control
   public getStage(): Konva.Stage {
     return this.stage;
@@ -225,5 +234,102 @@ export class MindMap {
     };
     
     return JSON.stringify(exportData, null, 2);
+  }
+
+  public importFromJson(jsonString: string): void {
+    try {
+      const importData = JSON.parse(jsonString);
+      
+      // Validate the import data structure
+      if (!importData || typeof importData !== 'object') {
+        throw new Error('Invalid JSON format: Expected object');
+      }
+      
+      if (!importData.tree) {
+        throw new Error('Invalid JSON format: Missing tree data');
+      }
+      
+      // Validate tree structure
+      this.validateTreeStructure(importData.tree);
+      
+      // Add missing type information for legacy compatibility
+      this.addMissingTypeInfo(importData.tree);
+      
+      // Import the tree
+      this.controller.importFromTreeStructure(importData.tree);
+      
+      // Redraw the layer
+      this.layer.draw();
+      
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Import failed: ${error.message}`);
+      } else {
+        throw new Error('Import failed: Unknown error');
+      }
+    }
+  }
+
+  private validateTreeStructure(tree: any): void {
+    if (!tree || typeof tree !== 'object') {
+      throw new Error('Invalid tree structure: Expected object');
+    }
+    
+    // Required fields (type is optional for legacy compatibility)
+    const requiredFields = ['id', 'text', 'level', 'side', 'children'];
+    for (const field of requiredFields) {
+      if (!(field in tree)) {
+        throw new Error(`Invalid tree structure: Missing field '${field}'`);
+      }
+    }
+    
+    if (typeof tree.id !== 'string') {
+      throw new Error('Invalid tree structure: id must be a string');
+    }
+    
+    if (typeof tree.text !== 'string') {
+      throw new Error('Invalid tree structure: text must be a string');
+    }
+    
+    // Type is optional - will be inferred if missing
+    if ('type' in tree && typeof tree.type !== 'string') {
+      throw new Error('Invalid tree structure: type must be a string');
+    }
+    
+    if (!Array.isArray(tree.children)) {
+      throw new Error('Invalid tree structure: children must be an array');
+    }
+    
+    // Recursively validate children
+    tree.children.forEach((child: any, index: number) => {
+      try {
+        this.validateTreeStructure(child);
+      } catch (error) {
+        if (error instanceof Error) {
+          throw new Error(`Invalid tree structure in child ${index}: ${error.message}`);
+        }
+        throw error;
+      }
+    });
+  }
+
+  private addMissingTypeInfo(tree: any): void {
+    // Infer type if missing
+    if (!tree.type) {
+      if (tree.level === 0) {
+        // Root node
+        tree.type = NodeType.ROOT;
+      } else {
+        // Default to TASK for non-root nodes
+        tree.type = NodeType.TASK;
+      }
+    }
+    
+    // Recursively process children
+    if (tree.children && Array.isArray(tree.children)) {
+      tree.children.forEach((child: any) => {
+        this.addMissingTypeInfo(child);
+      });
+    }
   }
 }

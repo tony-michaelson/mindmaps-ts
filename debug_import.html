@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Import Test</title>
+</head>
+<body>
+    <div id="mindmap-container" style="width: 1200px; height: 800px; border: 1px solid #ccc;"></div>
+    
+    <script type="module">
+        import { MindMap } from './dist/index.js';
+        
+        // Create mindmap instance
+        const mindMap = new MindMap("mindmap-container", 1200, 800);
+        
+        // Test data
+        const testData = `{
+          "timestamp": "2025-08-24T01:33:13.406Z",
+          "tree": {
+            "id": "06f2b5cd-5ec2-4b11-ab4c-2b70cdb5eb29",
+            "text": "Main Topic",
+            "type": "ROOT",
+            "level": 0,
+            "side": "right",
+            "children": [
+              {
+                "id": "5d01e0cc-3a29-4bd3-96cd-ed16e4cf3f44",
+                "text": "Design",
+                "type": "IDEA",
+                "level": 1,
+                "side": "left",
+                "children": []
+              },
+              {
+                "id": "0e8f9d2c-ce21-456e-a0ca-3b42b7b72f15",
+                "text": "Analysis",
+                "type": "DEADLINE",
+                "level": 1,
+                "side": "right",
+                "children": [
+                  {
+                    "id": "2f3b8a7c-4d5e-9f6a-8c7b-1a2b3c4d5e6f",
+                    "text": "Requirements",
+                    "type": "TASK",
+                    "level": 2,
+                    "side": "right",
+                    "children": []
+                  },
+                  {
+                    "id": "3g4h5i6j-7k8l-9m0n-1o2p-3q4r5s6t7u8v",
+                    "text": "Documentation",
+                    "type": "RESOURCE",
+                    "level": 2,
+                    "side": "right",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "4h5i6j7k-8l9m-0n1o-2p3q-4r5s6t7u8v9w",
+                "text": "Implementation",
+                "type": "TASK",
+                "level": 1,
+                "side": "right",
+                "children": [
+                  {
+                    "id": "5i6j7k8l-9m0n-1o2p-3q4r-5s6t7u8v9w0x",
+                    "text": "Backend",
+                    "type": "TASK",
+                    "level": 2,
+                    "side": "right",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        }`;
+        
+        // Wait a moment then import
+        setTimeout(() => {
+            console.log('Starting import test...');
+            try {
+                mindMap.importFromJson(testData);
+                console.log('Import completed successfully!');
+            } catch (error) {
+                console.error('Import failed:', error);
+            }
+        }, 1000);
+        
+        // Expose for testing
+        window.mindMap = mindMap;
+        window.testImport = () => mindMap.importFromJson(testData);
+    </script>
+</body>
+</html>

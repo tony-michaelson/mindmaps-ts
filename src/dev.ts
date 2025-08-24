@@ -25,6 +25,7 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 
 // Expose mindMap globally for debugging and testing
 (window as any).mindMap = mindMap;
+(window as any).NodeType = NodeType;
 
 // Add some helper functions for demo purposes
 (window as any).addRandomNode = (side: "left" | "right" = "right") => {

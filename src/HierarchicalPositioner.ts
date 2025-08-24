@@ -78,10 +78,20 @@ export class HierarchicalPositioner {
     const rootId = this.findRootNode();
     if (!rootId) return [];
 
+    console.log('🔍 HierarchicalPositioner: recalculating layout');
+    console.log('  All node positions:', Array.from(this.nodePositions.keys()));
+    console.log('  All node sides:', Array.from(this.nodeSides.entries()));
+    console.log('  Children map:', Array.from(this.childrenMap.entries()));
+
     // Build tree structures for left and right sides
     const leftNodes = this.buildTreeStructure(rootId, "left");
     const rightNodes = this.buildTreeStructure(rootId, "right");
     const rootNode = this.createTreeNode(rootId);
+
+    console.log('📊 Built tree structures:');
+    console.log('  Left nodes:', leftNodes.map(n => ({ id: n.id, children: n.children.length })));
+    console.log('  Right nodes:', rightNodes.map(n => ({ id: n.id, children: n.children.length })));
+    console.log('  Root node:', { id: rootNode.id, children: rootNode.children.length });
 
     // Calculate layout using outline-based algorithm
     const layoutResults = this.layoutCalculator.calculateLayout(
@@ -92,6 +102,11 @@ export class HierarchicalPositioner {
       rootY
     );
 
+    console.log('📐 Layout results from calculator:', layoutResults.length, 'positions');
+    layoutResults.forEach(result => {
+      console.log('  Result:', result.nodeId, 'at', result.x, result.y);
+    });
+
     // Update stored positions
     const updatedPositions: NodePosition[] = [];
     layoutResults.forEach(result => {
@@ -101,9 +116,12 @@ export class HierarchicalPositioner {
         nodePos.x = result.x;
         nodePos.y = result.y;
         updatedPositions.push(nodePos);
+      } else {
+        console.log('⚠️ No stored position for result node:', result.nodeId);
       }
     });
 
+    console.log('✅ Updated', updatedPositions.length, 'positions');
     return updatedPositions;
   }
 
