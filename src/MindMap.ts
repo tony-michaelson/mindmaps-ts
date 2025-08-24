@@ -93,12 +93,12 @@ export class MindMap {
   private initKeyboardShortcuts(): void {
     window.addEventListener("keydown", (e) => {
       const isEditing = this.controller.isAnyNodeEditing();
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement?.tagName === "INPUT" || 
+                            activeElement?.tagName === "TEXTAREA" ||
+                            activeElement?.contentEditable === "true";
 
-      if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA" ||
-        isEditing
-      ) {
+      if (isInputFocused || isEditing) {
         return;
       }
 

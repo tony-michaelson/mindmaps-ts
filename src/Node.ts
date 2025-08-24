@@ -1,5 +1,4 @@
 import Konva from "konva";
-import { LAYOUT_CONFIG } from "./NodePosition";
 
 export class Node {
   private group: Konva.Group;
@@ -19,6 +18,7 @@ export class Node {
   private onSizeChange?: () => void;
   private onDoubleClick?: () => void;
   private onRightClick?: (x: number, y: number) => void;
+  private textArea?: HTMLTextAreaElement;
 
   private static readonly defaultStyles = {
     root: { background: "#22AAE0" },
@@ -309,82 +309,139 @@ export class Node {
     const displayText = this.textElement.text();
     this.currentText = displayText.replace(/\n/g, " ");
 
-    document.addEventListener("keydown", this.handleKeydown, true);
+    this.textElement.hide();
+    this.createTextArea();
 
     this.rectElement.stroke("#00FF88");
     this.rectElement.strokeWidth(2);
     this.layer.draw();
   }
 
-  private handleKeydown = (e: KeyboardEvent): void => {
-    if (!this.isEditing) return;
+  private createTextArea(): void {
+    const stage = this.layer.getStage();
+    if (!stage) return;
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    switch (e.key) {
-      case "Enter":
+    // Use Konva's getClientRect method to get the exact screen position
+    const clientRect = this.group.getClientRect();
+    const container = stage.container();
+    const containerRect = container.getBoundingClientRect();
+    
+    // Calculate the actual screen position with scroll offsets  
+    const scale = clientRect.width / this.rectElement.width();
+    const paddingScaled = this.padding * scale;
+    
+    // Use the actual text element dimensions for precise sizing
+    const textWidth = this.textElement.width() * scale;
+    const textHeight = this.textElement.height() * scale;
+    
+    // Center the textarea within the available space (after padding)
+    const availableWidth = clientRect.width - (paddingScaled * 2);
+    const availableHeight = clientRect.height - (paddingScaled * 2);
+    const textXOffset = (availableWidth - textWidth) / 2;
+    const textYOffset = (availableHeight - textHeight) / 2;
+    
+    const nodeX = containerRect.left + clientRect.x + window.scrollX + paddingScaled + textXOffset + 5;
+    const nodeY = containerRect.top + clientRect.y + window.scrollY + paddingScaled + textYOffset + 5;
+    const nodeWidth = textWidth - 10;
+    const nodeHeight = textHeight - 10;
+    
+    
+    
+    this.textArea = document.createElement('textarea');
+    this.textArea.value = this.currentText;
+    
+    this.textArea.style.position = 'absolute';
+    this.textArea.style.left = `${nodeX}px`;
+    this.textArea.style.top = `${nodeY}px`;
+    this.textArea.style.width = `${nodeWidth}px`;
+    this.textArea.style.height = `${nodeHeight}px`;
+    this.textArea.style.fontSize = `${10 * (clientRect.width / this.rectElement.width())}px`;
+    this.textArea.style.fontFamily = 'Helvetica';
+    this.textArea.style.fontWeight = 'bold';
+    this.textArea.style.textAlign = 'center';
+    this.textArea.style.border = 'none';
+    this.textArea.style.outline = 'none';
+    this.textArea.style.background = 'transparent';
+    this.textArea.style.color = this.textElement.fill();
+    this.textArea.style.zIndex = '1000';
+    this.textArea.style.resize = 'none';
+    this.textArea.style.padding = '0';
+    this.textArea.style.boxSizing = 'border-box';
+    this.textArea.style.overflow = 'hidden';
+    this.textArea.style.lineHeight = '1.5';
+    this.textArea.style.verticalAlign = 'middle';
+    
+    document.body.appendChild(this.textArea);
+    
+    this.textArea.addEventListener('blur', () => this.finishEditing());
+    this.textArea.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
         this.finishEditing();
-        return;
-      case "Escape":
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
         this.cancelEditing();
-        return;
-      case "Backspace":
-        this.currentText = this.currentText.slice(0, -1);
-        this.updateDisplayText();
-        return;
-      case "Delete":
-        this.currentText = this.currentText.slice(0, -1);
-        this.updateDisplayText();
-        return;
-    }
-
-    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      if (this.currentText.length < LAYOUT_CONFIG.maxNodeTextLength) {
-        this.currentText += e.key;
-        this.updateDisplayText();
       }
-    }
-  };
+    });
+    
+    this.textArea.focus();
+    this.textArea.select();
+  }
 
   private updateDisplayText(): void {
     const wrappedText = this.wrapText(this.currentText, 25);
     this.textElement.text(wrappedText);
 
-    const oldWidth = this.rectElement.width();
-    const oldHeight = this.rectElement.height();
+    if (!this.isEditing) {
+      const oldWidth = this.rectElement.width();
+      const oldHeight = this.rectElement.height();
 
-    this.textElement.measureSize();
+      this.textElement.measureSize();
 
-    const rawTextWidth = this.textElement.width();
-    const rawTextHeight = this.textElement.height();
+      const rawTextWidth = this.textElement.width();
+      const rawTextHeight = this.textElement.height();
 
-    const textWidth = Math.max(rawTextWidth, 20);
-    const textHeight = Math.max(rawTextHeight, 16);
-    const nodeWidth = textWidth + this.padding * 2;
-    const nodeHeight = textHeight + this.padding * 2;
+      const textWidth = Math.max(rawTextWidth, 20);
+      const textHeight = Math.max(rawTextHeight, 16);
+      const nodeWidth = textWidth + this.padding * 2;
+      const nodeHeight = textHeight + this.padding * 2;
 
-    this.rectElement.width(nodeWidth);
-    this.rectElement.height(nodeHeight);
+      this.rectElement.width(nodeWidth);
+      this.rectElement.height(nodeHeight);
 
-    this.textElement.x(this.padding);
-    this.textElement.y(this.padding);
+      this.textElement.x(this.padding);
+      this.textElement.y(this.padding);
 
-    this.layer.draw();
+      this.layer.draw();
 
-    const widthChange = Math.abs(oldWidth - nodeWidth);
-    const heightChange = Math.abs(oldHeight - nodeHeight);
-    if ((widthChange > 2 || heightChange > 2) && this.onSizeChange) {
-      this.onSizeChange();
+      const widthChange = Math.abs(oldWidth - nodeWidth);
+      const heightChange = Math.abs(oldHeight - nodeHeight);
+      if ((widthChange > 2 || heightChange > 2) && this.onSizeChange) {
+        this.onSizeChange();
+      }
+    } else {
+      this.layer.draw();
     }
   }
 
   public finishEditing(): void {
     if (!this.isEditing) return;
-
+    
     this.isEditing = false;
-    document.removeEventListener("keydown", this.handleKeydown, true);
 
+    if (this.textArea) {
+      this.currentText = this.textArea.value;
+      if (this.textArea.parentNode) {
+        this.textArea.parentNode.removeChild(this.textArea);
+      }
+      this.textArea = undefined;
+    }
+
+    this.textElement.show();
+    this.updateDisplayText();
     this.updateVisualStateOnly();
 
     if (this.onTextChange) {
@@ -396,10 +453,17 @@ export class Node {
 
   private cancelEditing(): void {
     if (!this.isEditing) return;
-
+    
     this.isEditing = false;
-    document.removeEventListener("keydown", this.handleKeydown, true);
 
+    if (this.textArea) {
+      if (this.textArea.parentNode) {
+        this.textArea.parentNode.removeChild(this.textArea);
+      }
+      this.textArea = undefined;
+    }
+
+    this.textElement.show();
     this.currentText = this.textElement.text().replace(/\n/g, " ");
 
     this.updateVisualStateOnly();
@@ -422,8 +486,9 @@ export class Node {
   }
 
   public remove(): void {
-    if (this.isEditing) {
-      document.removeEventListener("keydown", this.handleKeydown, true);
+    if (this.isEditing && this.textArea && this.textArea.parentNode) {
+      this.textArea.parentNode.removeChild(this.textArea);
+      this.textArea = undefined;
     }
     this.group.destroy();
     this.layer.draw();
