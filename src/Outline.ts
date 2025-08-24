@@ -106,8 +106,7 @@ export class Outline {
     return this.topBorder.reduce((sum, segment) => sum + segment.l, 0);
   }
 
-  combineHorizontally(other: Outline, spacing: number): Outline {
-    const thisWidth = this.width();
+  combineHorizontally(other: Outline): Outline {
 
     const newTopBorder = [...this.topBorder];
     const newBottomBorder = [...this.bottomBorder];

@@ -19,7 +19,7 @@ export enum NodeType {
 export interface NodeConfig {
   color: string;
   shape: "rectangle" | "circle" | "diamond";
-  clickBehavior?: (node: any) => void;
+  clickBehavior?: (node: unknown) => void;
 }
 
 export const NODE_CONFIGS: Record<NodeType, NodeConfig> = {

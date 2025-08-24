@@ -1,5 +1,5 @@
 import { NodePosition, LAYOUT_CONFIG } from "./NodePosition";
-import { TreeLayoutCalculator, TreeNode, LayoutResult } from "./TreeLayout";
+import { TreeLayoutCalculator, TreeNode } from "./TreeLayout";
 
 export class HierarchicalPositioner {
   private nodePositions: Map<string, NodePosition> = new Map();
@@ -84,8 +84,6 @@ export class HierarchicalPositioner {
       rootY
     );
 
-    layoutResults.forEach((result) => {});
-
     const updatedPositions: NodePosition[] = [];
     layoutResults.forEach((result) => {
       const nodePos = this.nodePositions.get(result.nodeId);
@@ -93,7 +91,6 @@ export class HierarchicalPositioner {
         nodePos.x = result.x;
         nodePos.y = result.y;
         updatedPositions.push(nodePos);
-      } else {
       }
     });
 

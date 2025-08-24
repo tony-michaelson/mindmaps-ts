@@ -1,9 +1,7 @@
-import Konva from "konva";
-
 interface BatchOperation {
   type: "nodeMove" | "nodeAdd" | "nodeRemove" | "connectionUpdate";
   nodeId: string;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 interface BatchResult {

@@ -64,8 +64,7 @@ export class TreeLayoutCalculator {
     const nodeOutline = Outline.forRectangle(node.width, node.height);
     const combinedOutline = this.combineNodeWithChildren(
       nodeOutline,
-      positionedChildren,
-      margin
+      positionedChildren
     );
 
     return {
@@ -139,8 +138,7 @@ export class TreeLayoutCalculator {
 
   private combineNodeWithChildren(
     nodeOutline: Outline,
-    children: SubtreeLayout[],
-    margin: number
+    children: SubtreeLayout[]
   ): Outline {
     if (children.length === 0) {
       return nodeOutline;
@@ -150,7 +148,7 @@ export class TreeLayoutCalculator {
 
     children.forEach((child) => {
       const childOutline = child.outline.translate(child.deltaX, child.deltaY);
-      combinedOutline = combinedOutline.combineHorizontally(childOutline, 0);
+      combinedOutline = combinedOutline.combineHorizontally(childOutline);
     });
 
     return combinedOutline;

@@ -25,7 +25,7 @@ export interface MenuContext {
 export type MenuActionHandler = (
   action: string,
   nodeId: string,
-  data?: any
+  data?: Record<string, unknown>
 ) => void;
 
 export class ContextMenu {
@@ -91,6 +91,7 @@ export class ContextMenu {
             data = JSON.parse(unescapedData);
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn(
             "Failed to parse menu item data:",
             menuItem.dataset.data,

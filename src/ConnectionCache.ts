@@ -20,16 +20,6 @@ interface ViewportBounds {
   margin: number;
 }
 
-interface CachedConnection {
-  shape: Konva.Shape;
-  bounds: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-}
-
 export class ConnectionCache {
   private calculateConnection = _.memoize(
     (params: ConnectionParams): Konva.Shape => {

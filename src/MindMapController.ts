@@ -11,11 +11,32 @@ import {
   LAYOUT_CONFIG,
 } from "./NodePosition";
 
+export interface TreeNodeData {
+  id: string;
+  text: string;
+  type: NodeType;
+  level: number;
+  side: string;
+  isSelected: boolean;
+  data?: Record<string, unknown>;
+  children: TreeNodeData[];
+}
+
+export interface LegacyTreeNodeData {
+  id: string;
+  text: string;
+  type: NodeType;
+  level: number;
+  side: string;
+  isSelected: boolean;
+  children: LegacyTreeNodeData[];
+}
+
 export class MindmapController {
   private positioner = new HierarchicalPositioner();
   private konvaNodes: Map<string, Node> = new Map();
   private nodeTypes: Map<string, NodeType> = new Map();
-  private nodeData: Map<string, Record<string, any>> = new Map();
+  private nodeData: Map<string, Record<string, unknown>> = new Map();
   private connections: Map<string, Konva.Shape> = new Map();
   private connectionCache = new ConnectionCache();
   private batchProcessor = new BatchProcessor();
@@ -50,7 +71,7 @@ export class MindmapController {
     }
   }
 
-  createRootNode(text: string, data: Record<string, any> = {}): string {
+  createRootNode(text: string, data: Record<string, unknown> = {}): string {
     const nodeId = this.generateNodeId();
     this.rootId = nodeId;
 
@@ -67,7 +88,7 @@ export class MindmapController {
     return nodeId;
   }
 
-  addNodeToRoot(text: string, type: NodeType, side: "left" | "right", data: Record<string, any> = {}): string {
+  addNodeToRoot(text: string, type: NodeType, side: "left" | "right", data: Record<string, unknown> = {}): string {
     if (!this.rootId) {
       throw new Error("Root node must be created first");
     }
@@ -100,7 +121,7 @@ export class MindmapController {
     });
   }
 
-  addNodeToExisting(parentId: string, text: string, type: NodeType, data: Record<string, any> = {}): string {
+  addNodeToExisting(parentId: string, text: string, type: NodeType, data: Record<string, unknown> = {}): string {
     const parentSide = this.positioner.getNodeSide(parentId);
     if (!parentSide) {
       throw new Error("Parent node not found");
@@ -456,8 +477,6 @@ export class MindmapController {
   private createConnectionLine(
     parentPos: NodePosition,
     childPos: NodePosition,
-    parentId: string,
-    childId: string
   ): Konva.Shape {
     return this.connectionCache.getCachedConnection(
       parentPos.x,
@@ -561,11 +580,10 @@ export class MindmapController {
     const parentId = nodePosition.parentId;
 
     if (nodePosition.level === 1 && parentId === this.rootId) {
-      const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX, dropY);
+      const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX);
       if (shouldSwitchSides) {
         this.moveRootChildToOppositeSide(nodeId, dropX, dropY);
         return;
-      } else {
       }
     }
 
@@ -573,13 +591,11 @@ export class MindmapController {
 
     if (siblings.length <= 1) {
       if (nodePosition.level === 1 && parentId === this.rootId) {
-        const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX, dropY);
+        const shouldSwitchSides = this.shouldSwitchSides(nodeId, dropX);
         if (shouldSwitchSides) {
           this.moveRootChildToOppositeSide(nodeId, dropX, dropY);
           return;
-        } else {
         }
-      } else {
       }
 
       const position = this.positioner.getNodePosition(nodeId);
@@ -717,31 +733,20 @@ export class MindmapController {
     this.layer.draw();
   }
 
-  public importFromTreeStructure(treeData: {
-    id: string;
-    text: string;
-    type: NodeType;
-    level: number;
-    side: string;
-    isSelected: boolean;
-    data?: Record<string, any>;
-    children: Array<any>;
-  }): void {
+  public importFromTreeStructure(treeData: TreeNodeData): void {
     this.batchProcessor.batch(() => {
       this.clear();
 
       const rootId = this.createRootNode(treeData.text, treeData.data || {});
 
-      const nodeQueue: Array<{ nodeData: any; parentId: string }> = [];
+      const nodeQueue: Array<{ nodeData: TreeNodeData; parentId: string }> = [];
 
       treeData.children.forEach((child) => {
         nodeQueue.push({ nodeData: child, parentId: rootId });
       });
 
-      let processCount = 0;
       while (nodeQueue.length > 0) {
         const { nodeData, parentId } = nodeQueue.shift()!;
-        processCount++;
 
         let newNodeId: string;
 
@@ -764,15 +769,15 @@ export class MindmapController {
         }
 
         if (nodeData.children && nodeData.children.length > 0) {
-          nodeData.children.forEach((child: any) => {
+          nodeData.children.forEach((child: TreeNodeData) => {
             nodeQueue.push({ nodeData: child, parentId: newNodeId });
           });
         }
       }
 
-      this.positioner.getChildren(this.rootId!).forEach((childId) => {});
+      // Force repositioning of all child nodes
 
-      const layoutResults = this.positioner.repositionSiblings(
+      this.positioner.repositionSiblings(
         this.rootId!,
         this.rootX,
         this.rootY
@@ -792,15 +797,7 @@ export class MindmapController {
   }
 
   private importNode(
-    nodeData: {
-      id: string;
-      text: string;
-      type: NodeType;
-      level: number;
-      side: string;
-      isSelected: boolean;
-      children: Array<any>;
-    },
+    nodeData: LegacyTreeNodeData,
     parentId: string | null
   ): string {
     const nodeId = this.generateNodeId();
@@ -912,11 +909,11 @@ export class MindmapController {
     return this.nodeTypes.get(nodeId) || null;
   }
 
-  public getNodeData(nodeId: string): Record<string, any> {
+  public getNodeData(nodeId: string): Record<string, unknown> {
     return this.nodeData.get(nodeId) || {};
   }
 
-  public setNodeData(nodeId: string, data: Record<string, any>): void {
+  public setNodeData(nodeId: string, data: Record<string, unknown>): void {
     this.nodeData.set(nodeId, data);
   }
 
@@ -993,7 +990,7 @@ export class MindmapController {
       this.positionNodeOptimallyOnNewSide(nodeId, newSide, dropY);
     }
 
-    const layoutResults = this.positioner.repositionSiblings(
+    this.positioner.repositionSiblings(
       this.rootId!,
       this.rootX,
       this.rootY
@@ -1021,8 +1018,7 @@ export class MindmapController {
 
   private shouldSwitchSides(
     nodeId: string,
-    dropX: number,
-    dropY: number
+    dropX: number
   ): boolean {
     const nodePosition = this.positioner.getNodePosition(nodeId);
     const rootPosition = this.positioner.getNodePosition(this.rootId!);
@@ -1117,7 +1113,7 @@ export class MindmapController {
   }
 
   public isAnyNodeEditing(): boolean {
-    for (const [nodeId, node] of this.konvaNodes) {
+    for (const [, node] of this.konvaNodes) {
       if (node.isCurrentlyEditing()) {
         return true;
       }
@@ -1606,31 +1602,13 @@ export class MindmapController {
     }
   }
 
-  public getTreeStructure(): {
-    id: string;
-    text: string;
-    type: NodeType;
-    level: number;
-    side: string;
-    isSelected: boolean;
-    data: Record<string, any>;
-    children: Array<any>;
-  } | null {
+  public getTreeStructure(): TreeNodeData | null {
     if (!this.rootId) return null;
 
     return this.buildTreeNode(this.rootId);
   }
 
-  private buildTreeNode(nodeId: string): {
-    id: string;
-    text: string;
-    type: NodeType;
-    level: number;
-    side: string;
-    isSelected: boolean;
-    data: Record<string, any>;
-    children: Array<any>;
-  } {
+  private buildTreeNode(nodeId: string): TreeNodeData {
     const node = this.konvaNodes.get(nodeId);
     const position = this.positioner.getNodePosition(nodeId);
     const childrenIds = this.positioner.getChildren(nodeId);
@@ -1650,16 +1628,7 @@ export class MindmapController {
   }
 
   private importNodeSimple(
-    nodeData: {
-      id: string;
-      text: string;
-      type: NodeType;
-      level: number;
-      side: string;
-      isSelected: boolean;
-      data?: Record<string, any>;
-      children: Array<any>;
-    },
+    nodeData: TreeNodeData,
     parentId: string | null
   ): string {
     let nodeId: string;

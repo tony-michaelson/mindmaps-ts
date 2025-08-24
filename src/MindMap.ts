@@ -14,7 +14,7 @@ export enum ActionType {
 }
 
 export type CallbackFunction = (nodeData: string) => void | Promise<void>;
-export type LinkCallback = (nodeId: string, data: Record<string, any>) => void | Promise<void>;
+export type LinkCallback = (nodeId: string, data: Record<string, unknown>) => void | Promise<void>;
 
 export class MindMap {
   private stage: Konva.Stage;
@@ -50,7 +50,7 @@ export class MindMap {
     this.contextMenu = new ContextMenu(this.handleMenuAction.bind(this));
 
     // Set default link callback that opens URLs in new tab
-    this.linkCallback = async (nodeId: string, data: Record<string, any>) => {
+    this.linkCallback = async (nodeId: string, data: Record<string, unknown>) => {
       if (data.url && typeof data.url === 'string') {
         window.open(data.url, '_blank');
       }
@@ -63,10 +63,7 @@ export class MindMap {
       }
     };
 
-    this.controller.onNodeTextChange = async (
-      nodeId: string,
-      _newText: string
-    ) => {
+    this.controller.onNodeTextChange = async (nodeId: string) => {
       await this.triggerCallbacks(ActionType.NODE_TITLE_CHANGE, nodeId);
     };
 
@@ -157,7 +154,9 @@ export class MindMap {
       this.controller.selectNode(nodeId);
       this.layer.draw();
       await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
-    } catch (error) {}
+    } catch {
+      // Ignore errors during node addition
+    }
   }
 
   private async addChildToSelected(
@@ -176,7 +175,7 @@ export class MindMap {
         this.controller.selectNode(nodeId);
         this.layer.draw();
         await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
-      } catch (error) {
+      } catch {
         await this.addRootChild(text, nodeType);
       }
     } else {
@@ -203,7 +202,7 @@ export class MindMap {
           this.controller.selectNode(nodeId);
           this.layer.draw();
           await this.triggerCallbacks(ActionType.NODE_ADD, nodeId);
-        } catch (error) {
+        } catch {
           await this.addRootChild(text, nodeType);
         }
       } else {
@@ -234,7 +233,7 @@ export class MindMap {
     this.controller.removeNode(selectedNodeId);
   }
 
-  public createRoot(text: string, data: Record<string, any> = {}): string {
+  public createRoot(text: string, data: Record<string, unknown> = {}): string {
     return this.controller.createRootNode(text, data);
   }
 
@@ -242,7 +241,7 @@ export class MindMap {
     parentId: string,
     text: string = "",
     type?: NodeType,
-    data: Record<string, any> = {}
+    data: Record<string, unknown> = {}
   ): Promise<string> {
     const nodeType = type || this.defaultNodeType;
     const nodeId = this.controller.addNodeToExisting(parentId, text, nodeType, data);
@@ -254,7 +253,7 @@ export class MindMap {
     text: string = "",
     type?: NodeType,
     side: "left" | "right" = "right",
-    data: Record<string, any> = {}
+    data: Record<string, unknown> = {}
   ): Promise<string> {
     const nodeType = type || this.defaultNodeType;
     const nodeId = this.controller.addNodeToRoot(text, nodeType, side, data);
@@ -277,11 +276,11 @@ export class MindMap {
     return this.controller.getNodeCount();
   }
 
-  public getNodeData(nodeId: string): Record<string, any> {
+  public getNodeData(nodeId: string): Record<string, unknown> {
     return this.controller.getNodeData(nodeId);
   }
 
-  public setNodeData(nodeId: string, data: Record<string, any>): void {
+  public setNodeData(nodeId: string, data: Record<string, unknown>): void {
     this.controller.setNodeData(nodeId, data);
   }
 
@@ -365,7 +364,7 @@ export class MindMap {
       try {
         const result = callback(nodeData);
         return Promise.resolve(result);
-      } catch (error) {
+      } catch {
         return Promise.resolve();
       }
     });
@@ -395,15 +394,16 @@ export class MindMap {
   private handleMenuAction: MenuActionHandler = (
     action: string,
     nodeId: string,
-    data?: any
+    data?: Record<string, unknown>
   ) => {
     switch (action) {
-      case "edit":
+      case "edit": {
         const node = this.controller.getKonvaNode(nodeId);
         if (node) {
           node.startEditing();
         }
         break;
+      }
 
       case "type-task":
       case "type-idea":
@@ -419,7 +419,7 @@ export class MindMap {
         this.addChildToNode(nodeId);
         break;
 
-      case "add-sibling":
+      case "add-sibling": {
         const parentId = this.controller.getParentId(nodeId);
         if (parentId) {
           this.addChildToNode(parentId);
@@ -432,6 +432,7 @@ export class MindMap {
           this.addRootChild("", undefined, side);
         }
         break;
+      }
 
       case "move-opposite":
         this.moveRootChildToOppositeSide(nodeId);
@@ -449,7 +450,7 @@ export class MindMap {
     return JSON.stringify(nodeData, null, 2);
   }
 
-  private findNodeInTree(node: any, targetId: string): any {
+  private findNodeInTree(node: Record<string, unknown>, targetId: string): Record<string, unknown> | null {
     if (node.id === targetId) {
       return node;
     }
@@ -509,7 +510,7 @@ export class MindMap {
     }
   }
 
-  private validateTreeStructure(tree: any): void {
+  private validateTreeStructure(tree: Record<string, unknown>): void {
     if (!tree || typeof tree !== "object") {
       throw new Error("Invalid tree structure: Expected object");
     }
@@ -537,7 +538,7 @@ export class MindMap {
       throw new Error("Invalid tree structure: children must be an array");
     }
 
-    tree.children.forEach((child: any, index: number) => {
+    tree.children.forEach((child: Record<string, unknown>, index: number) => {
       try {
         this.validateTreeStructure(child);
       } catch (error) {
