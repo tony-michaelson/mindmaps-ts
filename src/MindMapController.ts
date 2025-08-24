@@ -1184,39 +1184,40 @@ export class MindmapController {
     }
   }
 
-  public getAllNodesData(): Array<{
+  public getTreeStructure(): {
     id: string;
     text: string;
-    position: NodePosition;
-    children: string[];
-    isRoot: boolean;
+    level: number;
+    side: string;
     isSelected: boolean;
-  }> {
-    const nodesData: Array<{
-      id: string;
-      text: string;
-      position: NodePosition;
-      children: string[];
-      isRoot: boolean;
-      isSelected: boolean;
-    }> = [];
+    children: Array<any>;
+  } | null {
+    if (!this.rootId) return null;
+    
+    return this.buildTreeNode(this.rootId);
+  }
 
-    this.konvaNodes.forEach((node, nodeId) => {
-      const position = this.positioner.getNodePosition(nodeId);
-      const children = this.positioner.getChildren(nodeId);
-      
-      if (position) {
-        nodesData.push({
-          id: nodeId,
-          text: node.getText(),
-          position: position,
-          children: children,
-          isRoot: nodeId === this.rootId,
-          isSelected: nodeId === this.selectedNodeId
-        });
-      }
-    });
-
-    return nodesData;
+  private buildTreeNode(nodeId: string): {
+    id: string;
+    text: string;
+    level: number;
+    side: string;
+    isSelected: boolean;
+    children: Array<any>;
+  } {
+    const node = this.konvaNodes.get(nodeId);
+    const position = this.positioner.getNodePosition(nodeId);
+    const childrenIds = this.positioner.getChildren(nodeId);
+    
+    const children = childrenIds.map(childId => this.buildTreeNode(childId));
+    
+    return {
+      id: nodeId,
+      text: node?.getText() || '',
+      level: position?.level || 0,
+      side: position?.side || 'right',
+      isSelected: nodeId === this.selectedNodeId,
+      children: children
+    };
   }
 }
