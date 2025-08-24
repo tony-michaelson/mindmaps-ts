@@ -239,17 +239,21 @@ export class Node {
         rect.shadowBlur(15);
         rect.shadowOpacity(0.8);
       } else if (this.isDragging) {
-        // Dragging: semi-transparent with blue glow
-        rect.opacity(0.7);
+        // Dragging: very transparent with blue glow
+        rect.opacity(0.25);
         rect.stroke("#2E9AFE");
         rect.strokeWidth(2);
         rect.dash([]);
         rect.shadowColor("#2E9AFE");
         rect.shadowBlur(20);
         rect.shadowOpacity(0.6);
+        
+        // Also make text transparent during drag
+        this.textElement.opacity(0.25);
       } else if (this.isSelected) {
         // Selected: dashed border with root node color
         rect.opacity(1);
+        this.textElement.opacity(1);
         rect.stroke(Node.defaultStyles.root.background);
         rect.strokeWidth(2);
         rect.dash([8, 4]);
@@ -259,6 +263,7 @@ export class Node {
       } else if (this.isActivated) {
         // Activated: solid blue border
         rect.opacity(1);
+        this.textElement.opacity(1);
         rect.stroke("#2E9AFE");
         rect.strokeWidth(3);
         rect.dash([]);
@@ -268,6 +273,7 @@ export class Node {
       } else {
         // Default: solid gray border
         rect.opacity(1);
+        this.textElement.opacity(1);
         rect.stroke("#888");
         rect.strokeWidth(1);
         rect.dash([]);
