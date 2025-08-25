@@ -17,6 +17,7 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
     NodeType.IDEA,
     NodeType.RESOURCE,
     NodeType.DEADLINE,
+    NodeType.CUBE,
   ];
 
   const randomTopic = topics[Math.floor(Math.random() * topics.length)];
@@ -34,7 +35,7 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 
 (window as any).addChildToNode = (parentId: string) => {
   const topics = ["Subtask", "Detail", "Note", "Action Item"];
-  const types = [NodeType.TASK, NodeType.IDEA];
+  const types = [NodeType.TASK, NodeType.IDEA, NodeType.CUBE];
 
   const randomTopic = topics[Math.floor(Math.random() * topics.length)];
   const randomType = types[Math.floor(Math.random() * types.length)];
@@ -163,6 +164,64 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   );
 };
 
+(window as any).addCubeNode = (side: "left" | "right" = "right", text: string = "3D Cube Node") => {
+  const selectedNodeId = mindMap.getController().getSelectedNodeId();
+  const rootId = mindMap.getController().getRootId();
+
+  console.log(`📦 Adding 3D Cube node: "${text}"`);
+
+  if (selectedNodeId && selectedNodeId !== rootId) {
+    return mindMap.addChildToNode(selectedNodeId, text, NodeType.CUBE);
+  } else {
+    return mindMap.addRootChild(text, NodeType.CUBE, side);
+  }
+};
+
+(window as any).testCubeNodes = () => {
+  console.log("🧪 Testing 3D Cube nodes with different text lengths...");
+  
+  (window as any).addCubeNode("left", "Short");
+  (window as any).addCubeNode("right", "Medium Length Text");
+  (window as any).addCubeNode("left", "This is a much longer text that should wrap and show how the 3D cube scales with content");
+  
+  console.log("✅ Added 3D cube nodes with varying text lengths!");
+  console.log("📝 You can see how the 3D rectangles scale properly with the text content.");
+  console.log("🔧 Double-click any cube node to edit its text and see it resize!");
+};
+
+(window as any).testCubeResize = () => {
+  console.log("🔄 Testing cube node resizing...");
+  
+  const cubeId = (window as any).addCubeNode("right", "Initial Text");
+  console.log(`📦 Added cube node: ${cubeId}`);
+  console.log("📝 Instructions:");
+  console.log("1. Double-click the cube node to edit its text");
+  console.log("2. Try changing it to different lengths like:");
+  console.log("   - 'Short'");
+  console.log("   - 'This is a longer text to test resizing'");  
+  console.log("   - 'Very long text that should wrap to multiple lines and demonstrate the 3D cube scaling properly'");
+  console.log("3. Press Enter to finish editing and watch the 3D cube resize!");
+  
+  return cubeId;
+};
+
+(window as any).showClean3DCubes = () => {
+  console.log("✨ Showcasing clean 3D cube design...");
+  
+  // Clear existing nodes for a clean demo
+  mindMap.clear();
+  
+  // Add cubes with different sizes to show the clean geometric appearance
+  (window as any).addCubeNode("left", "Small");
+  (window as any).addCubeNode("right", "Medium sized text");
+  (window as any).addCubeNode("left", "Larger text content with multiple words");
+  (window as any).addCubeNode("right", "This is a much longer text that wraps to show the clean 3D rectangular shape without shadows or rounded corners");
+  
+  console.log("✅ Added clean 3D cubes with no shadows or rounded corners!");
+  console.log("📐 Notice the sharp geometric edges and how the 3D depth is created purely by the side faces");
+  console.log("🎨 The dimensional effect comes from the darker side and top faces, not drop shadows");
+};
+
 (window as any).testExportImportData = () => {
   console.log("🔄 Testing export/import with node data...");
 
@@ -253,6 +312,10 @@ console.log(`
 • addRandomNode('left'/'right') - adds child to selected node, or to root side if root/none selected
 • addChildToNode(nodeId)
 • addLinkNode('left'/'right', 'https://example.com') - adds a LINK node with URL data
+• addCubeNode('left'/'right', 'text') - adds a 3D cube node with custom text
+• testCubeNodes() - test 3D cube nodes with different text lengths
+• testCubeResize() - test cube node resizing when text is edited
+• showClean3DCubes() - showcase clean 3D cubes without shadows or rounded corners
 • testNodeData(nodeId?) - test getting/setting data on selected or specified node
 • testLinkCallback() - test link node double-click behavior (opens URLs, no edit mode)
 • setCustomLinkCallback() - set a custom link callback that shows confirmation

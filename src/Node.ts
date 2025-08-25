@@ -152,27 +152,29 @@ export class Node {
       listening: true,
     });
 
-    const cubeSize = Math.min(width, height);
-    const depth = cubeSize * 0.3;
+    // Use the actual width and height for a proper 3D rectangle
+    const rectWidth = width;
+    const rectHeight = height;
+    const depth = Math.min(rectWidth, rectHeight) * 0.25; // Depth proportional to smaller dimension
 
-    // Front face (main rectangle)
+    // Front face (main rectangle with proper dimensions)
     const frontFace = new Konva.Rect({
-      width: cubeSize,
-      height: cubeSize,
+      width: rectWidth,
+      height: rectHeight,
       fill: backgroundColor,
       stroke: this.isActivated ? "#2E9AFE" : "#888",
       strokeWidth: this.isActivated ? 3 : 1,
-      cornerRadius: 0,
+      cornerRadius: 0, // No rounded corners for 3D geometric appearance
       listening: true,
     });
 
-    // Right face (parallelogram)
+    // Right face (parallelogram scaled to rectangle height)
     const rightFace = new Konva.Line({
       points: [
-        cubeSize, 0,
-        cubeSize + depth, -depth,
-        cubeSize + depth, cubeSize - depth,
-        cubeSize, cubeSize
+        rectWidth, 0,
+        rectWidth + depth, -depth,
+        rectWidth + depth, rectHeight - depth,
+        rectWidth, rectHeight
       ],
       fill: this.darkenColor(backgroundColor, 0.2),
       stroke: this.isActivated ? "#2E9AFE" : "#888",
@@ -181,13 +183,13 @@ export class Node {
       listening: true,
     });
 
-    // Top face (parallelogram)
+    // Top face (parallelogram scaled to rectangle width)
     const topFace = new Konva.Line({
       points: [
         0, 0,
         depth, -depth,
-        cubeSize + depth, -depth,
-        cubeSize, 0
+        rectWidth + depth, -depth,
+        rectWidth, 0
       ],
       fill: this.darkenColor(backgroundColor, 0.1),
       stroke: this.isActivated ? "#2E9AFE" : "#888",
@@ -200,16 +202,73 @@ export class Node {
     cubeGroup.add(topFace);
     cubeGroup.add(frontFace);
 
-    // Add shadow to the front face instead of the group
-    frontFace.shadowColor("black");
-    frontFace.shadowBlur(this.isSelected ? 0 : 10);
-    frontFace.shadowOffset({
-      x: 4,
-      y: this.isCollapsed ? 3 : 4,
-    });
-    frontFace.shadowOpacity(this.isSelected ? 1.0 : 0.4);
-
+    // No shadow for 3D cube nodes - the depth faces provide the dimensional effect
+    
     return cubeGroup;
+  }
+
+  private rebuildCubeShape(newWidth: number, newHeight: number): void {
+    if (!(this.rectElement instanceof Konva.Group)) return;
+
+    // Get the current background color from the front face
+    const frontFace = this.rectElement.findOne('Rect') as Konva.Rect;
+    const backgroundColor = frontFace ? frontFace.fill() as string : "#4CAF50";
+
+    // Remove all children from the group
+    this.rectElement.destroyChildren();
+
+    // Recreate the cube faces with new dimensions
+    const rectWidth = newWidth;
+    const rectHeight = newHeight;
+    const depth = Math.min(rectWidth, rectHeight) * 0.25;
+
+    // Front face
+    const newFrontFace = new Konva.Rect({
+      width: rectWidth,
+      height: rectHeight,
+      fill: backgroundColor,
+      stroke: this.isActivated ? "#2E9AFE" : "#888",
+      strokeWidth: this.isActivated ? 3 : 1,
+      cornerRadius: 0, // No rounded corners for 3D geometric appearance
+      listening: true,
+    });
+
+    // Right face
+    const newRightFace = new Konva.Line({
+      points: [
+        rectWidth, 0,
+        rectWidth + depth, -depth,
+        rectWidth + depth, rectHeight - depth,
+        rectWidth, rectHeight
+      ],
+      fill: this.darkenColor(backgroundColor, 0.2),
+      stroke: this.isActivated ? "#2E9AFE" : "#888",
+      strokeWidth: this.isActivated ? 3 : 1,
+      closed: true,
+      listening: true,
+    });
+
+    // Top face
+    const newTopFace = new Konva.Line({
+      points: [
+        0, 0,
+        depth, -depth,
+        rectWidth + depth, -depth,
+        rectWidth, 0
+      ],
+      fill: this.darkenColor(backgroundColor, 0.1),
+      stroke: this.isActivated ? "#2E9AFE" : "#888",
+      strokeWidth: this.isActivated ? 3 : 1,
+      closed: true,
+      listening: true,
+    });
+
+    // Add faces to group in correct order
+    this.rectElement.add(newRightFace);
+    this.rectElement.add(newTopFace);
+    this.rectElement.add(newFrontFace);
+
+    // No shadow for 3D cube nodes - the depth faces provide the dimensional effect
   }
 
   private darkenColor(hex: string, amount: number): string {
@@ -367,13 +426,8 @@ export class Node {
 
   private updateShapeShadow(shapeElement: Konva.Shape, color: string, blur: number, opacity: number): void {
     if (shapeElement instanceof Konva.Group) {
-      // For cube shapes, update the front face (first Rect child)
-      const frontFace = shapeElement.findOne("Rect") as Konva.Rect;
-      if (frontFace) {
-        frontFace.shadowColor(color);
-        frontFace.shadowBlur(blur);
-        frontFace.shadowOpacity(opacity);
-      }
+      // For cube shapes, don't apply shadows - the 3D depth provides the visual effect
+      return;
     } else {
       shapeElement.shadowColor(color);
       shapeElement.shadowBlur(blur);
@@ -383,11 +437,8 @@ export class Node {
 
   private updateShapeShadowOffset(shapeElement: Konva.Shape, x: number, y: number): void {
     if (shapeElement instanceof Konva.Group) {
-      // For cube shapes, update the front face (first Rect child)
-      const frontFace = shapeElement.findOne("Rect") as Konva.Rect;
-      if (frontFace) {
-        frontFace.shadowOffset({ x, y });
-      }
+      // For cube shapes, don't apply shadow offsets - no shadows on 3D nodes
+      return;
     } else {
       shapeElement.shadowOffset({ x, y });
     }
@@ -577,8 +628,20 @@ export class Node {
     const wrappedText = this.wrapText(this.currentText, 25);
     this.textElement.text(wrappedText);
 
-    const oldWidth = this.rectElement.width();
-    const oldHeight = this.rectElement.height();
+    // Get old dimensions properly for both regular and cube shapes
+    let oldWidth: number;
+    let oldHeight: number;
+    
+    if (this.rectElement instanceof Konva.Group) {
+      // For cube shapes, get dimensions from the front face
+      const frontFace = this.rectElement.findOne('Rect') as Konva.Rect;
+      oldWidth = frontFace ? frontFace.width() : 0;
+      oldHeight = frontFace ? frontFace.height() : 0;
+    } else {
+      // For regular shapes
+      oldWidth = this.rectElement.width();
+      oldHeight = this.rectElement.height();
+    }
 
     this.textElement.measureSize();
 
@@ -590,8 +653,15 @@ export class Node {
     const nodeWidth = textWidth + this.padding * 2;
     const nodeHeight = textHeight + this.padding * 2;
 
-    this.rectElement.width(nodeWidth);
-    this.rectElement.height(nodeHeight);
+    // Update dimensions properly for both regular and cube shapes
+    if (this.rectElement instanceof Konva.Group) {
+      // For cube shapes, rebuild the entire cube with new dimensions
+      this.rebuildCubeShape(nodeWidth, nodeHeight);
+    } else {
+      // For regular shapes
+      this.rectElement.width(nodeWidth);
+      this.rectElement.height(nodeHeight);
+    }
 
     this.textElement.x(this.padding);
     this.textElement.y(this.padding);
