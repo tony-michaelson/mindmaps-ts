@@ -221,9 +221,11 @@ export class TreeLayoutCalculator {
       };
 
       const rightLayout = this.calculateTree(rightTree, margin, "right");
+      // Position right subtrees with proper edge-to-edge spacing from root
+      const rightStartX = rootX + rootNode.width / 2 + LAYOUT_CONFIG.horizontalSpacing;
       const rightResults = this.calculateAbsolutePositions(
         rightLayout,
-        rootX,
+        rightStartX,
         rootY - LAYOUT_CONFIG.height / 2
       );
 
@@ -242,21 +244,13 @@ export class TreeLayoutCalculator {
 
       const leftLayout = this.calculateTree(leftTree, margin, "left");
 
-      const tempLeftResults = this.calculateAbsolutePositions(
+      // Position left subtrees with proper edge-to-edge spacing from root
+      const leftStartX = rootX - rootNode.width / 2 - LAYOUT_CONFIG.horizontalSpacing;
+      const leftResults = this.calculateAbsolutePositions(
         leftLayout,
-        0,
+        leftStartX,
         rootY - LAYOUT_CONFIG.height / 2
       ).filter((r) => r.nodeId !== "left-container");
-
-      const maxRightEdge = Math.max(
-        ...tempLeftResults.map((r) => r.x + r.width)
-      );
-
-      const leftResults = tempLeftResults.map((result) => ({
-        ...result,
-        x: rootX - rootNode.width - (maxRightEdge - result.x), // hack to align better
-        y: result.y,
-      }));
 
       results.push(...leftResults);
     }
