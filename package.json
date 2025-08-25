@@ -1,27 +1,56 @@
 {
   "name": "mindmaps-ts",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
-  "description": "A mindmapping library based on konva.js",
-  "main": "index.js",
+  "description": "A modern TypeScript mindmapping library with 3D nodes, advanced layout algorithms, and smooth interactions built on Konva.js",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && tsc --emitDeclarationOnly --outDir dist",
+    "build:lib": "vite build && tsc --emitDeclarationOnly --outDir dist",
+    "build:demo": "vite build --config vite.demo.config.ts",
     "dev": "vite",
     "lint": "eslint src/**/*.ts && npm run typecheck",
     "lint:fix": "eslint src/**/*.ts --fix",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test": "jest"
+    "test": "jest",
+    "prepublishOnly": "npm run lint && npm run test:e2e && npm run build:lib"
   },
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/tony-michaelson/mindmaps-ts.git"
   },
   "keywords": [
-    "mind",
-    "maps"
+    "mindmap",
+    "mindmapping",
+    "visualization",
+    "typescript",
+    "konva",
+    "canvas",
+    "3d-nodes",
+    "layout-algorithms",
+    "drag-drop",
+    "tree-layout",
+    "interactive"
   ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "author": "Anthony Ian Michaelson",
   "license": "MIT",
   "bugs": {
