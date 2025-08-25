@@ -412,7 +412,6 @@ export class MindMap {
   ) => {
     switch (action) {
       case "edit": {
-        console.log('Menu edit action: calling startEditing');
         const node = this.controller.getKonvaNode(nodeId);
         if (node) {
           node.startEditing();

@@ -54,9 +54,15 @@ export class TreeLayoutCalculator {
       this.calculateTree(child, margin, side)
     );
 
+    // For container nodes (left-container, right-container), use a default width
+    // since they are virtual nodes with no visual representation
+    const parentWidth = node.id.includes("-container")
+      ? LAYOUT_CONFIG.width
+      : node.width;
+
     const positionedChildren = this.appendSubtrees(
       childLayouts,
-      node.width,
+      parentWidth,
       margin,
       side
     );
@@ -96,8 +102,8 @@ export class TreeLayoutCalculator {
 
     const horizontal =
       side === "left"
-        ? -Math.min(parentWidth + horizontalSpacing + 50, 190) // hack to align better
-        : Math.min(parentWidth + horizontalSpacing + 50, 190); // hack to align better
+        ? -(parentWidth * 0.5 + horizontalSpacing)
+        : parentWidth * 0.5 + horizontalSpacing;
     const positioned: SubtreeLayout[] = [];
 
     if (subtrees.length === 1) {

@@ -1,5 +1,6 @@
 import Konva from "konva";
 import { NODE_CONFIGS, NodeType } from "./NodePosition";
+import { EditDialog } from "./EditDialog";
 
 export class Node {
   private group: Konva.Group;
@@ -23,6 +24,7 @@ export class Node {
   private isLinkNode: boolean = false;
   private isNewNode: boolean = false;
   private textArea?: HTMLTextAreaElement;
+  private editDialog: EditDialog;
 
   private static readonly defaultStyles = {
     root: { background: "#22AAE0" },
@@ -68,6 +70,7 @@ export class Node {
     this.onLinkClick = onLinkClick;
     this.isLinkNode = isLinkNode;
     this.isNewNode = isNewNode;
+    this.editDialog = new EditDialog();
 
     this.currentText = text.replace(/\n/g, " ");
 
@@ -401,26 +404,27 @@ export class Node {
   }
 
   private setupTextEditing(): void {
-    console.log('setupTextEditing called:', { 
-      currentText: this.currentText, 
-      isNewNode: this.isNewNode,
-      nodeType: this.nodeType 
-    });
     if (this.currentText === "" || this.currentText === "New Node") {
-      console.log('Starting setupKeyCapture for empty node');
       this.setupKeyCapture();
     }
 
     this.group.on("dblclick", () => {
-      if (this.onDoubleClick) {
-        this.onDoubleClick();
-      }
-      
       if (this.isLinkNode && this.onLinkClick) {
         this.onLinkClick();
       } else {
-        console.log('Tab/double-click triggered startEditing');
         this.startEditing();
+        
+        // Only call the external double-click callback for nodes that will use key capture
+        // This prevents unwanted side effects like creating child nodes when using dialog
+        const hasContent = this.currentText && this.currentText !== "New Node" && this.currentText !== "";
+        const isEmptyNewNode = this.isNewNode && (!this.currentText || this.currentText === "" || this.currentText === "New Node");
+        
+        if (hasContent && !isEmptyNewNode) {
+          // For nodes using dialog, we skip the external callback
+        } else if (this.onDoubleClick) {
+          // For nodes using key capture, call the callback
+          this.onDoubleClick();
+        }
       }
     });
 
@@ -433,9 +437,56 @@ export class Node {
   }
 
   public startEditing(): void {
-    console.log('startEditing called - starting textarea mode');
     if (this.isEditing) return;
 
+    // Use dialog for nodes that have actual content
+    // Use key capture/textarea only for nodes that are truly empty and new
+    const hasContent = this.currentText && this.currentText !== "New Node" && this.currentText !== "";
+    const isEmptyNewNode = this.isNewNode && (!this.currentText || this.currentText === "" || this.currentText === "New Node");
+    
+    if (hasContent && !isEmptyNewNode) {
+      this.startDialogEditing();
+    } else {
+      this.startTextAreaEditing();
+    }
+  }
+
+  private startDialogEditing(): void {
+    const currentText = this.currentText;
+    
+    // Set editing flag to prevent keyboard shortcuts from interfering
+    this.isEditing = true;
+    
+    this.editDialog.show(
+      currentText,
+      (newText: string) => {
+        // Clear editing flag
+        this.isEditing = false;
+        
+        if (newText !== currentText) {
+          this.currentText = newText;
+          
+          // Make sure text element is visible
+          this.textElement.show();
+          
+          this.updateDisplayText();
+          
+          // Force a layer redraw
+          this.layer.draw();
+          
+          if (this.onTextChange) {
+            this.onTextChange(this.currentText);
+          }
+        }
+      },
+      () => {
+        // Clear editing flag on cancel too
+        this.isEditing = false;
+      }
+    );
+  }
+
+  private startTextAreaEditing(): void {
     this.isEditing = true;
 
     const displayText = this.textElement.text();
@@ -607,7 +658,6 @@ export class Node {
   }
 
   private setupKeyCapture(): void {
-    console.log('setupKeyCapture called - starting key capture mode');
     this.isEditing = true;
     this.rectElement.stroke("#00FF88");
     this.rectElement.strokeWidth(2);

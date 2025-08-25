@@ -118,6 +118,7 @@ export class HierarchicalPositioner {
       width: LAYOUT_CONFIG.width,
       height: LAYOUT_CONFIG.height,
     };
+    
     let children = this.childrenMap.get(nodeId) || [];
 
     if (filterBySide) {
