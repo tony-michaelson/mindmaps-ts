@@ -461,21 +461,12 @@ export class Node {
 
     this.group.on("dblclick", () => {
       if (this.isLinkNode && this.onLinkClick) {
+        // For link nodes, still handle the link click on double-click
         this.onLinkClick();
-      } else {
-        this.startEditing();
-        
-        // Only call the external double-click callback for nodes that will use key capture
-        // This prevents unwanted side effects like creating child nodes when using dialog
-        const hasContent = this.currentText && this.currentText !== "New Node" && this.currentText !== "";
-        const isEmptyNewNode = this.isNewNode && (!this.currentText || this.currentText === "" || this.currentText === "New Node");
-        
-        if (hasContent && !isEmptyNewNode) {
-          // For nodes using dialog, we skip the external callback
-        } else if (this.onDoubleClick) {
-          // For nodes using key capture, call the callback
-          this.onDoubleClick();
-        }
+      } else if (this.onDoubleClick) {
+        // For regular nodes, only call the external double-click callback
+        // Text editing is now only available through context menu
+        this.onDoubleClick();
       }
     });
 

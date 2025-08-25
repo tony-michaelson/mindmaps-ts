@@ -222,6 +222,26 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   console.log("🎨 The dimensional effect comes from the darker side and top faces, not drop shadows");
 };
 
+(window as any).testContextMenuEditing = () => {
+  console.log("🖱️ Testing context menu-only editing behavior...");
+  
+  // Clear and add test nodes
+  mindMap.clear();
+  const testId = (window as any).addCubeNode("right", "Double-click me!");
+  (window as any).addRandomNode("left");
+  
+  console.log("✅ Added test nodes:");
+  console.log("📝 Instructions:");
+  console.log("1. Double-click any node - it should NOT open text editing");
+  console.log("2. Right-click any node to open context menu");
+  console.log("3. Select 'Edit Text' from context menu to edit");
+  console.log("4. Link nodes still open URLs on double-click");
+  console.log("");
+  console.log("🎯 This demonstrates that text editing is now only available via context menu!");
+  
+  return testId;
+};
+
 (window as any).testExportImportData = () => {
   console.log("🔄 Testing export/import with node data...");
 
@@ -316,6 +336,7 @@ console.log(`
 • testCubeNodes() - test 3D cube nodes with different text lengths
 • testCubeResize() - test cube node resizing when text is edited
 • showClean3DCubes() - showcase clean 3D cubes without shadows or rounded corners
+• testContextMenuEditing() - test that editing only works via context menu, not double-click
 • testNodeData(nodeId?) - test getting/setting data on selected or specified node
 • testLinkCallback() - test link node double-click behavior (opens URLs, no edit mode)
 • setCustomLinkCallback() - set a custom link callback that shows confirmation
