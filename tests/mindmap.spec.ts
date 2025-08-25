@@ -1,6 +1,5 @@
 import { test, expect } from "@playwright/test";
 
-// (window as any).mindMap = mindMap; // Expose mindMap for API testing in dev.ts if you need ascertions.
 
 test("should add a node and drag it", async ({ page }) => {
   await page.goto("/");

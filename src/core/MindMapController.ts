@@ -22,15 +22,6 @@ export interface TreeNodeData {
   children: TreeNodeData[];
 }
 
-export interface LegacyTreeNodeData {
-  id: string;
-  text: string;
-  type: NodeType;
-  level: number;
-  side: string;
-  isSelected: boolean;
-  children: LegacyTreeNodeData[];
-}
 
 export class MindmapController {
   private positioner = new HierarchicalPositioner();
@@ -496,21 +487,6 @@ export class MindmapController {
     };
   }
 
-  private createConnectionLine(
-    parentPos: NodePosition,
-    childPos: NodePosition,
-  ): Konva.Shape {
-    return this.connectionCache.getCachedConnection(
-      parentPos.x,
-      parentPos.y,
-      LAYOUT_CONFIG.width,
-      LAYOUT_CONFIG.height,
-      childPos.x,
-      childPos.y,
-      LAYOUT_CONFIG.width,
-      LAYOUT_CONFIG.height
-    );
-  }
 
   private scheduleDraw(): void {
     if (this.pendingRedraw) return;
@@ -818,67 +794,6 @@ export class MindmapController {
     this.layer.draw();
   }
 
-  private importNode(
-    nodeData: LegacyTreeNodeData,
-    parentId: string | null
-  ): string {
-    const nodeId = this.generateNodeId();
-
-    let position: NodePosition;
-
-    if (parentId === null) {
-      position = {
-        x: this.rootX,
-        y: this.rootY,
-        level: 0,
-        stackIndex: 0,
-        side: "right" as const,
-      };
-    } else {
-      const parentPos = this.positioner.getNodePosition(parentId);
-      if (!parentPos) {
-        throw new Error(`Parent node position not found for ${parentId}`);
-      }
-
-      const siblings = this.positioner.getChildren(parentId);
-      const stackIndex = siblings.length;
-
-      const side = nodeData.side as "left" | "right";
-      const horizontalOffset =
-        side === "left"
-          ? -(LAYOUT_CONFIG.width + LAYOUT_CONFIG.horizontalSpacing)
-          : LAYOUT_CONFIG.width + LAYOUT_CONFIG.horizontalSpacing;
-      const verticalOffset =
-        stackIndex * (LAYOUT_CONFIG.height + LAYOUT_CONFIG.verticalSpacing);
-
-      position = {
-        x: parentPos.x + horizontalOffset,
-        y: parentPos.y + verticalOffset,
-        level: parentPos.level + 1,
-        stackIndex,
-        side,
-        parentId,
-      };
-    }
-
-    this.positioner.updateNodePosition(nodeId, position);
-
-    if (parentId) {
-      this.updateChildrenMap(parentId, nodeId);
-    }
-
-    this.createAndPositionNode(nodeId, position, nodeData.text, nodeData.type);
-
-    nodeData.children.forEach((childData) => {
-      this.importNode(childData, nodeId);
-    });
-
-    return nodeId;
-
-    if (parentId) {
-      this.updateConnectionsSimple(parentId);
-    }
-  }
 
   private findNodeIdByPosition(position: NodePosition): string | null {
     for (const [nodeId, nodePos] of this.positioner["nodePositions"]) {
@@ -1703,31 +1618,4 @@ export class MindmapController {
     };
   }
 
-  private importNodeSimple(
-    nodeData: TreeNodeData,
-    parentId: string | null
-  ): string {
-    let nodeId: string;
-
-    if (parentId === null) {
-      nodeId = this.createRootNode(nodeData.text, nodeData.data || {});
-    } else {
-      if (nodeData.level === 1) {
-        nodeId = this.addNodeToRoot(
-          nodeData.text,
-          nodeData.type,
-          nodeData.side as "left" | "right",
-          nodeData.data || {}
-        );
-      } else {
-        nodeId = this.addNodeToExisting(parentId, nodeData.text, nodeData.type, nodeData.data || {});
-      }
-    }
-
-    nodeData.children.forEach((childData) => {
-      this.importNodeSimple(childData, nodeId);
-    });
-
-    return nodeId;
-  }
 }

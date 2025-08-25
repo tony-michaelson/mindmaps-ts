@@ -20,7 +20,6 @@ export enum NodeType {
 export interface NodeConfig {
   color: string;
   shape: "rectangle" | "circle" | "diamond" | "cube";
-  clickBehavior?: (node: unknown) => void;
 }
 
 export const NODE_CONFIGS: Record<NodeType, NodeConfig> = {
@@ -59,6 +58,5 @@ export const LAYOUT_CONFIG = {
   height: 40,
   horizontalSpacing: 40,
   verticalSpacing: 20,
-  maxTextLength: 25,
   maxNodeTextLength: 120,
 };
