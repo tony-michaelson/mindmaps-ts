@@ -8,7 +8,7 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 
 (window as any).addRandomNode = (side: "left" | "right" = "right") => {
   const topics = [
-    "The fix ensures that when text editing finishes, siblings will reposition based on the edited node's new dimensions,  ma",
+    // "The fix ensures that when text editing finishes, siblings will reposition based on the edited node's new dimensions,  ma",
     "Testing",
     "Review",
   ];
@@ -63,20 +63,28 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   return children;
 };
 
-(window as any).addLinkNode = (side: "left" | "right" = "right", url: string = "https://example.com") => {
+(window as any).addLinkNode = (
+  side: "left" | "right" = "right",
+  url: string = "https://example.com"
+) => {
   const linkData = {
     url: url,
     type: "external",
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   };
-  
+
   console.log(`🔗 Adding Link node with data:`, linkData);
-  
+
   const selectedNodeId = mindMap.getController().getSelectedNodeId();
   const rootId = mindMap.getController().getRootId();
-  
+
   if (selectedNodeId && selectedNodeId !== rootId) {
-    return mindMap.addChildToNode(selectedNodeId, "Link", NodeType.LINK, linkData);
+    return mindMap.addChildToNode(
+      selectedNodeId,
+      "Link",
+      NodeType.LINK,
+      linkData
+    );
   } else {
     return mindMap.addRootChild("Link", NodeType.LINK, side, linkData);
   }
@@ -84,38 +92,49 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 
 (window as any).testNodeData = (nodeId?: string) => {
   const targetNodeId = nodeId || mindMap.getController().getSelectedNodeId();
-  
+
   if (!targetNodeId) {
     console.log("❌ No node selected or specified");
     return;
   }
-  
-  console.log(`📊 Node ${targetNodeId} data:`, mindMap.getNodeData(targetNodeId));
-  
+
+  console.log(
+    `📊 Node ${targetNodeId} data:`,
+    mindMap.getNodeData(targetNodeId)
+  );
+
   // Test setting new data
   const newData = {
     customField: "test value",
     timestamp: Date.now(),
-    tags: ["important", "test"]
+    tags: ["important", "test"],
   };
-  
+
   mindMap.setNodeData(targetNodeId, newData);
   console.log(`✅ Updated node data:`, mindMap.getNodeData(targetNodeId));
 };
 
 (window as any).testLinkCallback = () => {
   console.log("🔗 Testing link callback functionality...");
-  
+
   // Add a link node with URL
-  const linkId = (window as any).addLinkNode("right", "https://github.com/anthropics/claude-code");
+  const linkId = (window as any).addLinkNode(
+    "right",
+    "https://github.com/anthropics/claude-code"
+  );
   console.log(`✅ Added link node: ${linkId}`);
-  
+
   // Add another link without URL to test fallback
-  const emptyLinkId = mindMap.addRootChild("Empty Link", NodeType.LINK, "left", {
-    title: "No URL here"
-  });
+  const emptyLinkId = mindMap.addRootChild(
+    "Empty Link",
+    NodeType.LINK,
+    "left",
+    {
+      title: "No URL here",
+    }
+  );
   console.log(`✅ Added link node without URL: ${emptyLinkId}`);
-  
+
   console.log("📝 Now double-click on the link nodes to test the callback!");
   console.log("  - The link with URL should open in a new tab");
   console.log("  - The link without URL should not do anything");
@@ -124,58 +143,68 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 
 (window as any).setCustomLinkCallback = () => {
   console.log("🔧 Setting custom link callback...");
-  
+
   mindMap.setLinkCallback((nodeId, data) => {
     console.log(`🖱️ Custom link callback triggered for node ${nodeId}`);
     console.log("📊 Node data:", data);
-    
+
     if (data.url) {
       const proceed = confirm(`Open link: ${data.url}?`);
       if (proceed) {
-        window.open(data.url, '_blank');
+        window.open(data.url, "_blank");
       }
     } else {
       alert("This link node has no URL data!");
     }
   });
-  
-  console.log("✅ Custom callback set! Now double-click link nodes to see the custom behavior.");
+
+  console.log(
+    "✅ Custom callback set! Now double-click link nodes to see the custom behavior."
+  );
 };
 
 (window as any).testExportImportData = () => {
   console.log("🔄 Testing export/import with node data...");
-  
+
   // Add some nodes with data
-  const linkId = (window as any).addLinkNode("left", "https://github.com/example");
-  const taskId = mindMap.addRootChild("Task with data", NodeType.TASK, "right", {
-    priority: "high",
-    assignee: "Alice",
-    dueDate: "2025-12-31"
-  });
-  
+  const linkId = (window as any).addLinkNode(
+    "left",
+    "https://github.com/example"
+  );
+  const taskId = mindMap.addRootChild(
+    "Task with data",
+    NodeType.TASK,
+    "right",
+    {
+      priority: "high",
+      assignee: "Alice",
+      dueDate: "2025-12-31",
+    }
+  );
+
   console.log("✅ Added nodes with data");
-  
+
   // Export to JSON
   const exported = mindMap.exportToJson();
   console.log("📤 Exported mindmap:");
   console.log(exported);
-  
+
   // Clear and import back
   console.log("🧹 Clearing mindmap...");
   mindMap.clear();
-  
+
   console.log("📥 Importing from JSON...");
   mindMap.importFromJson(exported);
-  
+
   // Verify data is preserved
   const rootChildren = mindMap.getRootChildren();
   console.log("🔍 Checking imported data:");
-  
-  rootChildren.forEach(child => {
+
+  rootChildren.forEach((child) => {
     const data = mindMap.getNodeData(child.nodeId);
     console.log(`Node "${child.text}" data:`, data);
   });
-  
+
   console.log("✅ Export/import test completed!");
 };
 

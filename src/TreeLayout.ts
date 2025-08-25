@@ -94,16 +94,18 @@ export class TreeLayoutCalculator {
   ): SubtreeLayout[] {
     if (subtrees.length === 0) return [];
 
+    // Use fixed horizontal spacing for consistent edge-to-edge distances
+    const horizontalSpacing = LAYOUT_CONFIG.horizontalSpacing;
+
+    // Calculate positioning based on edge-to-edge spacing:
+    // - Right side: parent right edge + spacing + half child width to get child center
+    // - Left side: parent left edge - spacing - half child width to get child center
     const maxChildWidth = Math.max(...subtrees.map((subtree) => subtree.width));
-    const horizontalSpacing = Math.max(
-      LAYOUT_CONFIG.horizontalSpacing,
-      maxChildWidth * 0.3 + LAYOUT_CONFIG.horizontalSpacing
-    );
 
     const horizontal =
       side === "left"
-        ? -(parentWidth * 0.5 + horizontalSpacing)
-        : parentWidth * 0.5 + horizontalSpacing;
+        ? -(parentWidth / 2 + horizontalSpacing + maxChildWidth / 2)
+        : parentWidth / 2 + horizontalSpacing + maxChildWidth / 2;
     const positioned: SubtreeLayout[] = [];
 
     if (subtrees.length === 1) {
@@ -221,7 +223,7 @@ export class TreeLayoutCalculator {
       const rightLayout = this.calculateTree(rightTree, margin, "right");
       const rightResults = this.calculateAbsolutePositions(
         rightLayout,
-        rootX + rootNode.width / 2 - 50, // hack to align better
+        rootX,
         rootY - LAYOUT_CONFIG.height / 2
       );
 
@@ -252,7 +254,7 @@ export class TreeLayoutCalculator {
 
       const leftResults = tempLeftResults.map((result) => ({
         ...result,
-        x: rootX - rootNode.width / 2 - (maxRightEdge - result.x) - 70, // hack to align better
+        x: rootX - rootNode.width - (maxRightEdge - result.x), // hack to align better
         y: result.y,
       }));
 
