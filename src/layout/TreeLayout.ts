@@ -1,5 +1,5 @@
 import { Outline } from "./Outline";
-import { LAYOUT_CONFIG } from "./NodePosition";
+import { LAYOUT_CONFIG } from "../types/NodePosition";
 
 export interface TreeNode {
   id: string;

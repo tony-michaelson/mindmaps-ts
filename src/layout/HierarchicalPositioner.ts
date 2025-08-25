@@ -1,4 +1,4 @@
-import { NodePosition, LAYOUT_CONFIG } from "./NodePosition";
+import { NodePosition, LAYOUT_CONFIG } from "../types/NodePosition";
 import { TreeLayoutCalculator, TreeNode } from "./TreeLayout";
 
 export class HierarchicalPositioner {

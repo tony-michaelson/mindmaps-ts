@@ -1,5 +1,5 @@
-import { MindMap } from "./MindMap";
-import { NodeType } from "./NodePosition";
+import { MindMap } from "./core/MindMap";
+import { NodeType } from "./types/NodePosition";
 
 const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
 

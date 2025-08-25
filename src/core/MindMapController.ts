@@ -1,15 +1,15 @@
 import Konva from "konva";
 import { v4 as uuidv4 } from "uuid";
-import { Node } from "./Node";
-import { HierarchicalPositioner } from "./HierarchicalPositioner";
-import { ConnectionCache } from "./ConnectionCache";
-import { BatchProcessor } from "./BatchProcessor";
+import { Node } from "../components/Node";
+import { HierarchicalPositioner } from "../layout/HierarchicalPositioner";
+import { ConnectionCache } from "../utils/ConnectionCache";
+import { BatchProcessor } from "../utils/BatchProcessor";
 import {
   NodePosition,
   NodeType,
   NODE_CONFIGS,
   LAYOUT_CONFIG,
-} from "./NodePosition";
+} from "../types/NodePosition";
 
 export interface TreeNodeData {
   id: string;

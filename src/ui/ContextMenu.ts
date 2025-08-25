@@ -1,4 +1,4 @@
-import { NodeType } from "./NodePosition";
+import { NodeType } from "../types/NodePosition";
 
 export interface MenuAction {
   id: string;

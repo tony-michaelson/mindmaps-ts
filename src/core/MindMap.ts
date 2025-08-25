@@ -1,7 +1,7 @@
 import Konva from "konva";
 import { MindmapController } from "./MindMapController";
-import { NodeType } from "./NodePosition";
-import { ContextMenu, MenuActionHandler, MenuContext } from "./ContextMenu";
+import { NodeType } from "../types/NodePosition";
+import { ContextMenu, MenuActionHandler, MenuContext } from "../ui/ContextMenu";
 
 export enum ActionType {
   NODE_ADD = "Node::Add",

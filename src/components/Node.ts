@@ -1,6 +1,6 @@
 import Konva from "konva";
-import { NodeType } from "./NodePosition";
-import { EditDialog } from "./EditDialog";
+import { NodeType } from "../types/NodePosition";
+import { EditDialog } from "../ui/EditDialog";
 
 export class Node {
   private group: Konva.Group;

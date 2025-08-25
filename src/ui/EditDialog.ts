@@ -1,4 +1,4 @@
-import { LAYOUT_CONFIG } from "./NodePosition";
+import { LAYOUT_CONFIG } from "../types/NodePosition";
 
 export class EditDialog {
   private dialog: HTMLDivElement | null = null;
