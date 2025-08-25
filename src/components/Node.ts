@@ -425,23 +425,21 @@ export class Node {
   }
 
   private updateShapeShadow(shapeElement: Konva.Shape, color: string, blur: number, opacity: number): void {
-    if (shapeElement instanceof Konva.Group) {
-      // For cube shapes, don't apply shadows - the 3D depth provides the visual effect
-      return;
-    } else {
+    if (!(shapeElement instanceof Konva.Group)) {
+      // Only apply shadows to non-cube shapes
       shapeElement.shadowColor(color);
       shapeElement.shadowBlur(blur);
       shapeElement.shadowOpacity(opacity);
     }
+    // For cube shapes, don't apply shadows - the 3D depth provides the visual effect
   }
 
   private updateShapeShadowOffset(shapeElement: Konva.Shape, x: number, y: number): void {
-    if (shapeElement instanceof Konva.Group) {
-      // For cube shapes, don't apply shadow offsets - no shadows on 3D nodes
-      return;
-    } else {
+    if (!(shapeElement instanceof Konva.Group)) {
+      // Only apply shadow offsets to non-cube shapes
       shapeElement.shadowOffset({ x, y });
     }
+    // For cube shapes, don't apply shadow offsets - no shadows on 3D nodes
   }
 
   public getGroup(): Konva.Group {
