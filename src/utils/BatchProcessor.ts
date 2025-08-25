@@ -80,8 +80,8 @@ export class BatchProcessor {
         if (op.data?.parentId) {
           result.connectionsToUpdate.add(`${op.data.parentId}|${op.nodeId}`);
         }
-        if (op.data?.childrenIds) {
-          op.data.childrenIds.forEach((childId: string) => {
+        if (op.data?.childrenIds && Array.isArray(op.data.childrenIds)) {
+          (op.data.childrenIds as string[]).forEach((childId: string) => {
             result.connectionsToUpdate.add(`${op.nodeId}|${childId}`);
           });
         }
@@ -104,8 +104,8 @@ export class BatchProcessor {
         if (op.data?.parentId) {
           result.connectionsToRemove.add(`${op.data.parentId}|${op.nodeId}`);
         }
-        if (op.data?.childrenIds) {
-          op.data.childrenIds.forEach((childId: string) => {
+        if (op.data?.childrenIds && Array.isArray(op.data.childrenIds)) {
+          (op.data.childrenIds as string[]).forEach((childId: string) => {
             result.connectionsToRemove.add(`${op.nodeId}|${childId}`);
           });
         }
@@ -116,7 +116,7 @@ export class BatchProcessor {
     if (operationsByType.connectionUpdate) {
       operationsByType.connectionUpdate.forEach((op) => {
         if (op.data?.connectionId) {
-          result.connectionsToUpdate.add(op.data.connectionId);
+          result.connectionsToUpdate.add(op.data.connectionId as string);
         }
       });
       result.needsRedraw = true;

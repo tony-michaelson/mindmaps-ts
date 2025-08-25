@@ -22,7 +22,6 @@ export interface TreeNodeData {
   children: TreeNodeData[];
 }
 
-
 export class MindmapController {
   private positioner = new HierarchicalPositioner();
   private konvaNodes: Map<string, Node> = new Map();
@@ -37,7 +36,6 @@ export class MindmapController {
   private rootY: number;
   private selectedNodeId: string | null = null;
   private pendingRedraw = false;
-  private dragUpdateThrottle = 0;
   private highlightUpdateThrottle = 0;
   private connectionUpdatePending = false;
   private lastDropTargetId: string | null = null;
@@ -79,7 +77,12 @@ export class MindmapController {
     return nodeId;
   }
 
-  addNodeToRoot(text: string, type: NodeType, side: "left" | "right", data: Record<string, unknown> = {}): string {
+  addNodeToRoot(
+    text: string,
+    type: NodeType,
+    side: "left" | "right",
+    data: Record<string, unknown> = {}
+  ): string {
     if (!this.rootId) {
       throw new Error("Root node must be created first");
     }
@@ -113,7 +116,12 @@ export class MindmapController {
     });
   }
 
-  addNodeToExisting(parentId: string, text: string, type: NodeType, data: Record<string, unknown> = {}): string {
+  addNodeToExisting(
+    parentId: string,
+    text: string,
+    type: NodeType,
+    data: Record<string, unknown> = {}
+  ): string {
     const parentSide = this.positioner.getNodeSide(parentId);
     if (!parentSide) {
       throw new Error("Parent node not found");
@@ -171,7 +179,8 @@ export class MindmapController {
       onDoubleClick: () => this.onNodeDoubleClick?.(nodeId),
       onRightClick: (x: number, y: number) =>
         this.onNodeRightClick?.(nodeId, x, y),
-      onLinkClick: type === NodeType.LINK ? () => this.onLinkClick?.(nodeId) : undefined,
+      onLinkClick:
+        type === NodeType.LINK ? () => this.onLinkClick?.(nodeId) : undefined,
       isLinkNode: type === NodeType.LINK,
       isNewNode: isNewNode,
       nodeType: type,
@@ -311,90 +320,7 @@ export class MindmapController {
     this.layer.draw();
   }
 
-  private scheduleConnectionUpdate(parentId: string): void {
-    this.batchProcessor.addBatchCallback(() => {
-      this.updateConnectionsOptimized([parentId]);
-    });
-  }
 
-  private updateConnectionsOptimized(parentIds: string[]): void {
-    const viewport = this.getViewportBounds();
-    let hasVisibleChanges = false;
-
-    parentIds.forEach((parentId) => {
-      const children = this.positioner.getChildren(parentId);
-      const parentPos = this.positioner.getNodePosition(parentId);
-      if (!parentPos) return;
-
-      children.forEach((childId) => {
-        const childPos = this.positioner.getNodePosition(childId);
-        if (!childPos) return;
-
-        const connectionId = `${parentId}|${childId}`;
-
-        const parentNode = this.konvaNodes.get(parentId);
-        const childNode = this.konvaNodes.get(childId);
-        if (!parentNode || !childNode) return;
-
-        const parentGroup = parentNode.getGroup();
-        const childGroup = childNode.getGroup();
-        const parentRect = parentGroup.findOne("Rect") as Konva.Rect;
-        const childRect = childGroup.findOne("Rect") as Konva.Rect;
-        const parentWidth = parentRect.width();
-        const parentHeight = parentRect.height();
-        const childWidth = childRect.width();
-        const childHeight = childRect.height();
-
-        const parentCenterX = parentPos.x + parentWidth / 2;
-        const parentCenterY = parentPos.y + parentHeight / 2;
-        const childCenterX = childPos.x + childWidth / 2;
-        const childCenterY = childPos.y + childHeight / 2;
-
-        const isVisible = this.connectionCache.isConnectionVisible(
-          connectionId,
-          parentCenterX,
-          parentCenterY,
-          childCenterX,
-          childCenterY,
-          viewport
-        );
-
-        if (!isVisible) {
-          const oldConnection = this.connections.get(connectionId);
-          if (oldConnection) {
-            oldConnection.destroy();
-            this.connections.delete(connectionId);
-          }
-          return;
-        }
-
-        const newConnection = this.connectionCache.getCachedConnection(
-          parentPos.x,
-          parentPos.y,
-          parentWidth,
-          parentHeight,
-          childPos.x,
-          childPos.y,
-          childWidth,
-          childHeight
-        );
-
-        const oldConnection = this.connections.get(connectionId);
-        if (oldConnection) {
-          oldConnection.destroy();
-        }
-
-        this.connections.set(connectionId, newConnection);
-        this.layer.add(newConnection);
-        newConnection.moveToBottom();
-        hasVisibleChanges = true;
-      });
-    });
-
-    if (hasVisibleChanges) {
-      this.scheduleDraw();
-    }
-  }
 
   private scheduleSmartConnectionUpdate(): void {
     if (this.pendingRedraw) return;
@@ -486,7 +412,6 @@ export class MindmapController {
       margin: margin / scale,
     };
   }
-
 
   private scheduleDraw(): void {
     if (this.pendingRedraw) return;
@@ -775,11 +700,7 @@ export class MindmapController {
 
       // Force repositioning of all child nodes
 
-      this.positioner.repositionSiblings(
-        this.rootId!,
-        this.rootX,
-        this.rootY
-      );
+      this.positioner.repositionSiblings(this.rootId!, this.rootX, this.rootY);
 
       Array.from(this.konvaNodes.keys()).forEach((nodeId) => {
         const position = this.positioner.getNodePosition(nodeId);
@@ -793,7 +714,6 @@ export class MindmapController {
 
     this.layer.draw();
   }
-
 
   private findNodeIdByPosition(position: NodePosition): string | null {
     for (const [nodeId, nodePos] of this.positioner["nodePositions"]) {
@@ -854,11 +774,15 @@ export class MindmapController {
     this.nodeData.set(nodeId, data);
   }
 
-  public setCubeChildData(cubeNodeId: string, faceNumber: number, childData: Record<string, unknown>): void {
+  public setCubeChildData(
+    cubeNodeId: string,
+    faceNumber: number,
+    childData: Record<string, unknown>
+  ): void {
     if (faceNumber < 1 || faceNumber > 6) {
       throw new Error("Face number must be between 1 and 6");
     }
-    
+
     const nodeType = this.nodeTypes.get(cubeNodeId);
     if (nodeType !== NodeType.CUBE) {
       throw new Error("Node must be of type CUBE to set cube child data");
@@ -874,24 +798,36 @@ export class MindmapController {
     this.nodeData.set(cubeNodeId, cubeData);
   }
 
-  public getCubeChildData(cubeNodeId: string, faceNumber: number): Record<string, unknown> | null {
+  public getCubeChildData(
+    cubeNodeId: string,
+    faceNumber: number
+  ): Record<string, unknown> | null {
     if (faceNumber < 1 || faceNumber > 6) {
       throw new Error("Face number must be between 1 and 6");
     }
 
     const cubeData = this.nodeData.get(cubeNodeId) || {};
     const cubeChildren = cubeData.cubeChildren as Record<string, unknown>;
-    
+
     if (!cubeChildren) {
       return null;
     }
 
-    return (cubeChildren[`face${faceNumber}`] as Record<string, unknown>) || null;
+    return (
+      (cubeChildren[`face${faceNumber}`] as Record<string, unknown>) || null
+    );
   }
 
-  public getAllCubeChildren(cubeNodeId: string): Record<string, Record<string, unknown> | null> {
+  public getAllCubeChildren(
+    cubeNodeId: string
+  ): Record<string, Record<string, unknown> | null> {
     const cubeData = this.nodeData.get(cubeNodeId) || {};
-    return (cubeData.cubeChildren as Record<string, Record<string, unknown> | null>) || {};
+    return (
+      (cubeData.cubeChildren as Record<
+        string,
+        Record<string, unknown> | null
+      >) || {}
+    );
   }
 
   public getKonvaNode(nodeId: string) {
@@ -931,7 +867,10 @@ export class MindmapController {
       onDoubleClick: () => this.onNodeDoubleClick?.(nodeId),
       onRightClick: (x: number, y: number) =>
         this.onNodeRightClick?.(nodeId, x, y),
-      onLinkClick: newType === NodeType.LINK ? () => this.onLinkClick?.(nodeId) : undefined,
+      onLinkClick:
+        newType === NodeType.LINK
+          ? () => this.onLinkClick?.(nodeId)
+          : undefined,
       isLinkNode: newType === NodeType.LINK,
       isNewNode: false,
       nodeType: newType,
@@ -978,11 +917,7 @@ export class MindmapController {
       this.positionNodeOptimallyOnNewSide(nodeId, newSide, dropY);
     }
 
-    this.positioner.repositionSiblings(
-      this.rootId!,
-      this.rootX,
-      this.rootY
-    );
+    this.positioner.repositionSiblings(this.rootId!, this.rootX, this.rootY);
 
     Array.from(this.konvaNodes.keys()).forEach((id) => {
       const position = this.positioner.getNodePosition(id);
@@ -1004,10 +939,7 @@ export class MindmapController {
     return this.connectionCache.getCacheStats();
   }
 
-  private shouldSwitchSides(
-    nodeId: string,
-    dropX: number
-  ): boolean {
+  private shouldSwitchSides(nodeId: string, dropX: number): boolean {
     const nodePosition = this.positioner.getNodePosition(nodeId);
     const rootPosition = this.positioner.getNodePosition(this.rootId!);
 
@@ -1275,7 +1207,7 @@ export class MindmapController {
   }
 
   private updateAllConnections(): void {
-    this.konvaNodes.forEach((node, nodeId) => {
+    this.konvaNodes.forEach((_, nodeId) => {
       const children = this.positioner.getChildren(nodeId);
       children.forEach((childId) => {
         this.createConnectionFromVisualPositions(nodeId, childId);
@@ -1617,5 +1549,4 @@ export class MindmapController {
       children: children,
     };
   }
-
 }

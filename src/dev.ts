@@ -151,7 +151,7 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
     if (data.url) {
       const proceed = confirm(`Open link: ${data.url}?`);
       if (proceed) {
-        window.open(data.url, "_blank");
+        window.open(data.url as string, "_blank");
       }
     } else {
       alert("This link node has no URL data!");
@@ -245,11 +245,11 @@ const mindMap = new MindMap("container", window.innerWidth, window.innerHeight);
   console.log("🔄 Testing export/import with node data...");
 
   // Add some nodes with data
-  const linkId = (window as any).addLinkNode(
+  (window as any).addLinkNode(
     "left",
     "https://github.com/example"
   );
-  const taskId = mindMap.addRootChild(
+  mindMap.addRootChild(
     "Task with data",
     NodeType.TASK,
     "right",

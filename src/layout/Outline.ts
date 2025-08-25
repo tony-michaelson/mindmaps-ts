@@ -76,7 +76,7 @@ export class Outline {
     return new Outline(newTopBorder, newBottomBorder);
   }
 
-  translate(dx: number, dy: number): Outline {
+  translate(_dx: number, dy: number): Outline {
     const newTopBorder = this.topBorder.map((segment) => ({
       h: segment.h + dy,
       l: segment.l,

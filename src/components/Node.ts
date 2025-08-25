@@ -6,7 +6,6 @@ export class Node {
   private group: Konva.Group;
   private layer: Konva.Layer;
   private padding: number = 8;
-  private isRoot: boolean;
   private isSelected: boolean = false;
   private isActivated: boolean = false;
   private isCollapsed: boolean = false;
@@ -15,7 +14,7 @@ export class Node {
   private isEditing: boolean = false;
   private currentText: string;
   private textElement: Konva.Text;
-  private rectElement: Konva.Rect;
+  private rectElement: Konva.Rect | Konva.Group;
   private onTextChange?: (newText: string) => void;
   private onSizeChange?: () => void;
   private onDoubleClick?: () => void;
@@ -75,7 +74,6 @@ export class Node {
     this.currentText = text.replace(/\n/g, " ");
 
     this.layer = layer;
-    this.isRoot = isRoot;
     this.group = new Konva.Group({
       x,
       y,
@@ -112,7 +110,7 @@ export class Node {
     const nodeWidth = textWidth + this.padding * 2;
     const nodeHeight = textHeight + this.padding * 2;
 
-    let shapeElement: Konva.Shape;
+    let shapeElement: Konva.Shape | Konva.Group;
     
     if (nodeType === NodeType.CUBE) {
       shapeElement = this.createCubeShape(nodeWidth, nodeHeight, backgroundColor);
@@ -135,7 +133,7 @@ export class Node {
       });
     }
 
-    this.rectElement = shapeElement;
+    this.rectElement = shapeElement as Konva.Rect;
 
     label.x(this.padding);
     label.y(this.padding);
@@ -402,7 +400,7 @@ export class Node {
     }
   }
 
-  private updateShapeStroke(shapeElement: Konva.Shape, color: string, width: number, dash: number[]): void {
+  private updateShapeStroke(shapeElement: Konva.Shape | Konva.Group, color: string, width: number, dash: number[]): void {
     if (shapeElement instanceof Konva.Group) {
       // For cube shapes, update all child elements
       shapeElement.getChildren().forEach((child) => {
@@ -420,11 +418,11 @@ export class Node {
     }
   }
 
-  private updateShapeOpacity(shapeElement: Konva.Shape, opacity: number): void {
+  private updateShapeOpacity(shapeElement: Konva.Shape | Konva.Group, opacity: number): void {
     shapeElement.opacity(opacity);
   }
 
-  private updateShapeShadow(shapeElement: Konva.Shape, color: string, blur: number, opacity: number): void {
+  private updateShapeShadow(shapeElement: Konva.Shape | Konva.Group, color: string, blur: number, opacity: number): void {
     if (!(shapeElement instanceof Konva.Group)) {
       // Only apply shadows to non-cube shapes
       shapeElement.shadowColor(color);
@@ -434,7 +432,7 @@ export class Node {
     // For cube shapes, don't apply shadows - the 3D depth provides the visual effect
   }
 
-  private updateShapeShadowOffset(shapeElement: Konva.Shape, x: number, y: number): void {
+  private updateShapeShadowOffset(shapeElement: Konva.Shape | Konva.Group, x: number, y: number): void {
     if (!(shapeElement instanceof Konva.Group)) {
       // Only apply shadow offsets to non-cube shapes
       shapeElement.shadowOffset({ x, y });
@@ -584,7 +582,7 @@ export class Node {
     this.textArea.style.border = 'none';
     this.textArea.style.outline = 'none';
     this.textArea.style.background = 'transparent';
-    this.textArea.style.color = this.textElement.fill();
+    this.textArea.style.color = this.textElement.fill() as string;
     this.textArea.style.zIndex = '1000';
     this.textArea.style.resize = 'none';
     this.textArea.style.padding = '0';
@@ -632,7 +630,8 @@ export class Node {
       oldHeight = this.rectElement.height();
     }
 
-    this.textElement.measureSize();
+    // Force text measurement to update width/height
+    this.textElement.text(this.textElement.text());
 
     const rawTextWidth = this.textElement.width();
     const rawTextHeight = this.textElement.height();

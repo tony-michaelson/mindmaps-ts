@@ -7,8 +7,9 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "lint": "eslint src/**/*.ts",
+    "lint": "eslint src/**/*.ts && npm run typecheck",
     "lint:fix": "eslint src/**/*.ts --fix",
+    "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test": "jest"

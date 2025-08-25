@@ -50,7 +50,7 @@ export class MindMap {
     this.contextMenu = new ContextMenu(this.handleMenuAction.bind(this));
 
     // Set default link callback that opens URLs in new tab
-    this.linkCallback = async (nodeId: string, data: Record<string, unknown>) => {
+    this.linkCallback = async (_nodeId: string, data: Record<string, unknown>) => {
       if (data.url && typeof data.url === 'string') {
         window.open(data.url, '_blank');
       }
@@ -107,7 +107,7 @@ export class MindMap {
       const activeElement = document.activeElement;
       const isInputFocused = activeElement?.tagName === "INPUT" || 
                             activeElement?.tagName === "TEXTAREA" ||
-                            activeElement?.contentEditable === "true";
+                            (activeElement as HTMLElement)?.contentEditable === "true";
 
       if (isInputFocused || isEditing) {
         return;
@@ -424,7 +424,7 @@ export class MindMap {
       case "type-deadline":
       case "type-cube":
         if (data?.type) {
-          this.controller.changeNodeType(nodeId, data.type);
+          this.controller.changeNodeType(nodeId, data.type as NodeType);
           this.layer.draw();
         }
         break;
@@ -453,8 +453,11 @@ export class MindMap {
 
   private getNodeDataAsJson(nodeId: string): string {
     const treeStructure = this.controller.getTreeStructure();
-    const nodeData = this.findNodeInTree(treeStructure, nodeId);
-    return JSON.stringify(nodeData, null, 2);
+    if (!treeStructure) {
+      return JSON.stringify({}, null, 2);
+    }
+    const nodeData = this.findNodeInTree(treeStructure as unknown as Record<string, unknown>, nodeId);
+    return JSON.stringify(nodeData ?? {}, null, 2);
   }
 
   private findNodeInTree(node: Record<string, unknown>, targetId: string): Record<string, unknown> | null {

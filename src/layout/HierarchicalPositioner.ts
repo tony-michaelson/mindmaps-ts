@@ -61,7 +61,7 @@ export class HierarchicalPositioner {
   }
 
   repositionSiblings(
-    parentId: string,
+    _parentId: string,
     rootX: number,
     rootY: number
   ): NodePosition[] {

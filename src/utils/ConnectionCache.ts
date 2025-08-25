@@ -151,7 +151,7 @@ export class ConnectionCache {
     visibilityCacheSize: number;
   } {
     return {
-      connectionCacheSize: this.calculateConnection.cache.size || 0,
+      connectionCacheSize: (this.calculateConnection.cache as Map<string, unknown>)?.size || 0,
       visibilityCacheSize: this.visibilityCache.size,
     };
   }
