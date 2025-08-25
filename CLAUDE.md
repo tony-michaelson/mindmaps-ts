@@ -6,6 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Development server**: `npm run dev` - Starts Vite dev server on localhost:5173
 - **Build**: `npm run build` - Creates production build using Vite
+- **Linting**: `npm run lint` - Runs ESLint on TypeScript files and type checking
+- **Linting (fix)**: `npm run lint:fix` - Runs ESLint with auto-fix for correctable issues
+- **Type checking**: `npm run typecheck` - Runs TypeScript compiler in no-emit mode
 - **Unit tests**: `npm run test` - Runs Jest tests (Jest available but not configured; currently no unit tests exist)
 - **E2E tests**: `npm run test:e2e` - Runs Playwright tests headless
 - **E2E tests headed**: `npm run test:e2e:headed` - Runs Playwright tests with browser UI
