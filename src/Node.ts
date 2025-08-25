@@ -1,5 +1,5 @@
 import Konva from "konva";
-import { NODE_CONFIGS, NodeType } from "./NodePosition";
+import { NodeType } from "./NodePosition";
 import { EditDialog } from "./EditDialog";
 
 export class Node {

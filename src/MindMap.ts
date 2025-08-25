@@ -124,7 +124,6 @@ export class MindMap {
           break;
         case "Enter":
           e.preventDefault();
-          console.log('Keyboard Enter: calling addSiblingToSelected');
           this.addSiblingToSelected("");
           break;
         case "Tab":
@@ -431,15 +430,12 @@ export class MindMap {
         break;
 
       case "add-child": {
-        console.log('Right-click Add Child: calling addChildToSelected');
         this.controller.selectNode(nodeId);
         await this.addChildToSelected("");
         break;
       }
 
       case "add-sibling": {
-        console.log('Right-click Add Sibling: calling addSiblingToSelected');
-        const originalSelectedId = this.selectedNodeId;
         this.controller.selectNode(nodeId);
         await this.addSiblingToSelected("");
         break;

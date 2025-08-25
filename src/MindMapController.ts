@@ -995,7 +995,6 @@ export class MindmapController {
     const currentX = group.x();
     const currentY = group.y();
     const currentText = node.getText();
-    const nodeData = this.nodeData.get(nodeId) || {};
 
     // Remove old node
     node.remove();
