@@ -89,6 +89,8 @@ Delete/Backspace: Remove selected node
   - **Dynamic text color**: Uses luminosity calculation for optimal contrast
   - **Visual state management**: Selected, activated, collapsed, dragging, drop-target states
   - **Type-based styling**: Different colors and shapes based on NodeType
+  - **3D Cube Rendering**: Special geometric 3D rectangles with depth faces for CUBE type
+  - **Dynamic Resizing**: Text-aware scaling for all node types including 3D cubes
 
 **Visual States**:
 - **Default**: Gray border, standard shadow
@@ -196,6 +198,8 @@ TASK:     "#4CAF50" (Green)
 IDEA:     "#FF9800" (Orange)
 RESOURCE: "#9C27B0" (Purple)
 DEADLINE: "#F44336" (Red)
+LINK:     "#2196F3" (Blue)
+CUBE:     "#4CAF50" (Green, 3D appearance)
 ```
 
 ### Visual Hierarchy
@@ -211,6 +215,19 @@ DEADLINE: "#F44336" (Red)
 - **Text Wrapping**: 25-character limit with word boundaries
 - **Color Adaptation**: Automatic contrast based on background luminosity
 - **Alignment**: Center-aligned both horizontally and vertically
+
+### 3D Cube Node Implementation
+
+The CUBE node type provides a distinctive 3D geometric appearance:
+
+- **3D Geometry**: Rendered as isometric rectangles with three visible faces
+  - **Front Face**: Main rectangle with node content and text
+  - **Right Face**: Darker parallelogram (20% darker) showing right side depth
+  - **Top Face**: Lighter parallelogram (10% darker) showing top depth
+- **Dynamic Scaling**: 3D structure scales proportionally with text content
+- **Clean Design**: No rounded corners or drop shadows - pure geometric appearance
+- **Depth Calculation**: Depth is 25% of the smaller dimension (width or height)
+- **Text-Aware Resizing**: Entire 3D structure rebuilds when text changes during editing
 
 ## Performance Optimizations
 
