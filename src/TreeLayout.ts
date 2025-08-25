@@ -54,10 +54,10 @@ export class TreeLayoutCalculator {
       this.calculateTree(child, margin, side)
     );
 
-    // For container nodes (left-container, right-container), use a default width
-    // since they are virtual nodes with no visual representation
+    // For container nodes (left-container, right-container), use zero width
+    // since they are virtual positioning nodes with no visual representation
     const parentWidth = node.id.includes("-container")
-      ? LAYOUT_CONFIG.width
+      ? 0
       : node.width;
 
     const positionedChildren = this.appendSubtrees(
@@ -102,10 +102,10 @@ export class TreeLayoutCalculator {
     // - Left side: parent left edge - spacing - half child width to get child center
     const maxChildWidth = Math.max(...subtrees.map((subtree) => subtree.width));
 
+    // Test: use identical calculation for both sides to verify symmetry logic
+    const baseOffset = parentWidth / 2 + horizontalSpacing + maxChildWidth / 2;
     const horizontal =
-      side === "left"
-        ? -(parentWidth / 2 + horizontalSpacing + maxChildWidth / 2)
-        : parentWidth / 2 + horizontalSpacing + maxChildWidth / 2;
+      side === "left" ? -baseOffset : baseOffset;
     const positioned: SubtreeLayout[] = [];
 
     if (subtrees.length === 1) {
@@ -221,8 +221,10 @@ export class TreeLayoutCalculator {
       };
 
       const rightLayout = this.calculateTree(rightTree, margin, "right");
-      // Position right subtrees with proper edge-to-edge spacing from root
-      const rightStartX = rootX + rootNode.width / 2 + LAYOUT_CONFIG.horizontalSpacing;
+      // Position right container at root's actual right edge from results
+      const rootResult = results.find(r => r.nodeId === rootNode.id);
+      const actualRootRightEdge = rootResult ? rootResult.x + rootResult.width / 2 : rootX + rootNode.width / 2;
+      const rightStartX = actualRootRightEdge;
       const rightResults = this.calculateAbsolutePositions(
         rightLayout,
         rightStartX,
@@ -244,8 +246,10 @@ export class TreeLayoutCalculator {
 
       const leftLayout = this.calculateTree(leftTree, margin, "left");
 
-      // Position left subtrees with proper edge-to-edge spacing from root
-      const leftStartX = rootX - rootNode.width / 2 - LAYOUT_CONFIG.horizontalSpacing;
+      // Position left container at root's actual left edge from results  
+      const rootResult = results.find(r => r.nodeId === rootNode.id);
+      const actualRootLeftEdge = rootResult ? rootResult.x - rootResult.width / 2 : rootX - rootNode.width / 2;
+      const leftStartX = actualRootLeftEdge;
       const leftResults = this.calculateAbsolutePositions(
         leftLayout,
         leftStartX,
@@ -253,6 +257,42 @@ export class TreeLayoutCalculator {
       ).filter((r) => r.nodeId !== "left-container");
 
       results.push(...leftResults);
+    }
+
+    // Add debug lines to visualize spacing (temporary)
+    console.log("=== DETAILED SPACING DEBUG ===");
+    console.log("Root position:", rootX, "Root node width:", rootNode.width);
+    console.log("Right container positioned at:", rootX + rootNode.width / 2);
+    console.log("Left container positioned at:", rootX - rootNode.width / 2);
+    
+    const rootResult = results.find(r => r.nodeId === rootNode.id);
+    if (rootResult) {
+      const rootLeftEdge = rootResult.x - rootResult.width / 2;
+      const rootRightEdge = rootResult.x + rootResult.width / 2;
+      console.log("Root actual center:", rootResult.x, "Left edge:", rootLeftEdge, "Right edge:", rootRightEdge);
+      
+      results.forEach(result => {
+        if (result.nodeId === rootNode.id) return;
+        
+        const childCenter = result.x;
+        const childLeftEdge = result.x - result.width / 2;
+        const childRightEdge = result.x + result.width / 2;
+        
+        // Determine if this is a left or right child
+        const isRightChild = result.x > rootResult.x;
+        
+        if (isRightChild) {
+          const actualSpacing = childLeftEdge - rootRightEdge;
+          console.log(`RIGHT child ${result.nodeId}:`);
+          console.log(`  Center: ${childCenter}, Left edge: ${childLeftEdge}, Right edge: ${childRightEdge}`);
+          console.log(`  Width: ${result.width}, Spacing: ${actualSpacing.toFixed(2)}px (expected ${LAYOUT_CONFIG.horizontalSpacing}px)`);
+        } else {
+          const actualSpacing = rootLeftEdge - childRightEdge;
+          console.log(`LEFT child ${result.nodeId}:`);
+          console.log(`  Center: ${childCenter}, Left edge: ${childLeftEdge}, Right edge: ${childRightEdge}`);
+          console.log(`  Width: ${result.width}, Spacing: ${actualSpacing.toFixed(2)}px (expected ${LAYOUT_CONFIG.horizontalSpacing}px)`);
+        }
+      });
     }
 
     return results;
