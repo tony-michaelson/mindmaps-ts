@@ -495,8 +495,7 @@ export class Node {
     this.textElement.hide();
     this.createTextArea();
 
-    this.rectElement.stroke("#00FF88");
-    this.rectElement.strokeWidth(2);
+    // Don't change visual appearance during editing - let normal selection/activation handle it
     this.layer.draw();
   }
 
@@ -578,35 +577,31 @@ export class Node {
     const wrappedText = this.wrapText(this.currentText, 25);
     this.textElement.text(wrappedText);
 
-    if (!this.isEditing) {
-      const oldWidth = this.rectElement.width();
-      const oldHeight = this.rectElement.height();
+    const oldWidth = this.rectElement.width();
+    const oldHeight = this.rectElement.height();
 
-      this.textElement.measureSize();
+    this.textElement.measureSize();
 
-      const rawTextWidth = this.textElement.width();
-      const rawTextHeight = this.textElement.height();
+    const rawTextWidth = this.textElement.width();
+    const rawTextHeight = this.textElement.height();
 
-      const textWidth = Math.max(rawTextWidth, 20);
-      const textHeight = Math.max(rawTextHeight, 16);
-      const nodeWidth = textWidth + this.padding * 2;
-      const nodeHeight = textHeight + this.padding * 2;
+    const textWidth = Math.max(rawTextWidth, 20);
+    const textHeight = Math.max(rawTextHeight, 16);
+    const nodeWidth = textWidth + this.padding * 2;
+    const nodeHeight = textHeight + this.padding * 2;
 
-      this.rectElement.width(nodeWidth);
-      this.rectElement.height(nodeHeight);
+    this.rectElement.width(nodeWidth);
+    this.rectElement.height(nodeHeight);
 
-      this.textElement.x(this.padding);
-      this.textElement.y(this.padding);
+    this.textElement.x(this.padding);
+    this.textElement.y(this.padding);
 
-      this.layer.draw();
+    this.layer.draw();
 
-      const widthChange = Math.abs(oldWidth - nodeWidth);
-      const heightChange = Math.abs(oldHeight - nodeHeight);
-      if ((widthChange > 2 || heightChange > 2) && this.onSizeChange) {
-        this.onSizeChange();
-      }
-    } else {
-      this.layer.draw();
+    const widthChange = Math.abs(oldWidth - nodeWidth);
+    const heightChange = Math.abs(oldHeight - nodeHeight);
+    if ((widthChange > 2 || heightChange > 2) && this.onSizeChange) {
+      this.onSizeChange();
     }
   }
 
@@ -659,8 +654,7 @@ export class Node {
 
   private setupKeyCapture(): void {
     this.isEditing = true;
-    this.rectElement.stroke("#00FF88");
-    this.rectElement.strokeWidth(2);
+    // Don't change visual appearance - let normal selection/activation handle it
     this.layer.draw();
 
     const handleKeyDown = (e: KeyboardEvent) => {
