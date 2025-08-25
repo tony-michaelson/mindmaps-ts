@@ -17,7 +17,26 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': 'warn',
-      '@typescript-eslint/no-unused-vars': 'warn',
+      // Strict unused code detection
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_'
+        }
+      ],
+      'no-unused-expressions': 'error',
+      // Dead code detection
+      'no-unreachable': 'error',
+      'no-unreachable-loop': 'error',
+      'no-useless-return': 'error',
+      'no-constant-condition': 'error',
+      // Prevent useless constructs
+      'no-useless-concat': 'error',
+      'no-useless-escape': 'error',
+      'no-useless-rename': 'error',
+      // Other rules
       'no-empty': 'warn',
       'prefer-const': 'warn',
       'no-case-declarations': 'warn',
